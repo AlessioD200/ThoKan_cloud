@@ -52,6 +52,12 @@ type ShopifyConfig = {
   has_access_token: boolean;
 };
 
+type GelatoConfig = {
+  base_url: string;
+  has_api_key: boolean;
+  sku_map: Record<string, string>;
+};
+
 export default function SettingsPage() {
   const [info, setInfo] = useState<SystemInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -68,11 +74,17 @@ export default function SettingsPage() {
   const [shopifyAccessToken, setShopifyAccessToken] = useState("");
   const [shopifyHasToken, setShopifyHasToken] = useState(false);
   const [shopifyBusy, setShopifyBusy] = useState(false);
+  const [gelatoBaseUrl, setGelatoBaseUrl] = useState("https://order.gelatoapis.com");
+  const [gelatoApiKey, setGelatoApiKey] = useState("");
+  const [gelatoHasKey, setGelatoHasKey] = useState(false);
+  const [gelatoSkuMapText, setGelatoSkuMapText] = useState("{}");
+  const [gelatoBusy, setGelatoBusy] = useState(false);
 
   useEffect(() => {
     loadInfo();
     loadUpdateData();
     loadShopifyConfig();
+    loadGelatoConfig();
   }, []);
 
   async function loadInfo() {
@@ -193,6 +205,43 @@ export default function SettingsPage() {
       setStatus(err instanceof Error ? err.message : "Failed to save Shopify config");
     }
     setShopifyBusy(false);
+  }
+
+  async function loadGelatoConfig() {
+    try {
+      const row = await api<GelatoConfig>("/gelato/config");
+      setGelatoBaseUrl(row.base_url || "https://order.gelatoapis.com");
+      setGelatoHasKey(Boolean(row.has_api_key));
+      setGelatoSkuMapText(JSON.stringify(row.sku_map || {}, null, 2));
+    } catch {
+      // keep section optional if route not yet available
+    }
+  }
+
+  async function saveGelatoConfig() {
+    setGelatoBusy(true);
+    setStatus("");
+    try {
+      const parsed = JSON.parse(gelatoSkuMapText || "{}") as Record<string, string>;
+      const payload: { base_url: string; sku_map: Record<string, string>; api_key?: string } = {
+        base_url: gelatoBaseUrl,
+        sku_map: parsed,
+      };
+      if (gelatoApiKey.trim()) {
+        payload.api_key = gelatoApiKey.trim();
+      }
+
+      const result = await api<{ message: string }>("/gelato/config", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+      setStatus(result.message);
+      setGelatoApiKey("");
+      await loadGelatoConfig();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Failed to save Gelato config");
+    }
+    setGelatoBusy(false);
   }
 
   async function updateStoragePath(path: string) {
@@ -408,6 +457,56 @@ export default function SettingsPage() {
               className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
             >
               {shopifyBusy ? "Saving..." : "Save Shopify Config"}
+            </button>
+          </div>
+        </section>
+
+        <section className="glass rounded-2xl p-5">
+          <h2 className="text-xl font-semibold">Gelato Integration</h2>
+          <p className="mt-1 text-sm opacity-60">
+            Configure Gelato API for catalog discovery, pricing and order placement from Shopify orders.
+          </p>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium">Base URL</label>
+              <input
+                type="text"
+                className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                placeholder="https://order.gelatoapis.com"
+                value={gelatoBaseUrl}
+                onChange={(e) => setGelatoBaseUrl(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">API Key</label>
+              <input
+                type="password"
+                className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                placeholder={gelatoHasKey ? "API key already saved (leave empty to keep)" : "Gelato API key"}
+                value={gelatoApiKey}
+                onChange={(e) => setGelatoApiKey(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <label className="block text-sm font-medium">SKU mapping (Shopify SKU → Gelato productUid)</label>
+            <p className="mt-1 text-xs opacity-60">Example: {`{ "TSHIRT-BLACK-M": "gelato-product-uid" }`}</p>
+            <textarea
+              className="mt-2 h-40 w-full rounded-xl border border-border bg-card px-3 py-2 font-mono text-xs"
+              value={gelatoSkuMapText}
+              onChange={(e) => setGelatoSkuMapText(e.target.value)}
+            />
+          </div>
+
+          <div className="mt-4">
+            <button
+              onClick={saveGelatoConfig}
+              disabled={!gelatoBaseUrl || gelatoBusy}
+              className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+            >
+              {gelatoBusy ? "Saving..." : "Save Gelato Config"}
             </button>
           </div>
         </section>

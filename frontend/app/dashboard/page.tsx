@@ -73,6 +73,8 @@ export default function DashboardPage() {
   const [selectedOrder, setSelectedOrder] = useState<ShopifyOrderDetail | null>(null);
   const [orderDetailLoading, setOrderDetailLoading] = useState(false);
   const [orderDetailError, setOrderDetailError] = useState("");
+  const [sendGelatoBusy, setSendGelatoBusy] = useState(false);
+  const [sendGelatoStatus, setSendGelatoStatus] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -113,6 +115,27 @@ export default function DashboardPage() {
   function closeOrderDetail() {
     setSelectedOrder(null);
     setOrderDetailError("");
+    setSendGelatoStatus("");
+  }
+
+  async function sendOrderToGelato() {
+    if (!selectedOrder?.id) return;
+    setSendGelatoBusy(true);
+    setSendGelatoStatus("");
+    try {
+      const result = await api<{ message: string; unmapped_skus?: string[] }>(
+        `/gelato/orders/from-shopify/${selectedOrder.id}`,
+        {
+          method: "POST",
+          body: JSON.stringify({}),
+        }
+      );
+      const unmapped = result.unmapped_skus && result.unmapped_skus.length > 0 ? ` (unmapped SKUs: ${result.unmapped_skus.join(", ")})` : "";
+      setSendGelatoStatus(`${result.message}${unmapped}`);
+    } catch (err) {
+      setSendGelatoStatus(err instanceof Error ? err.message : "Failed to send order to Gelato");
+    }
+    setSendGelatoBusy(false);
   }
 
   const storagePercent = data?.system_info
@@ -275,13 +298,23 @@ export default function DashboardPage() {
             <div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl border border-border bg-card p-5">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Order Details</h3>
-                <button onClick={closeOrderDetail} className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-card/70">
-                  Close
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={sendOrderToGelato}
+                    disabled={orderDetailLoading || sendGelatoBusy || !selectedOrder}
+                    className="rounded-lg bg-accent px-3 py-1 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+                  >
+                    {sendGelatoBusy ? "Sending..." : "Send to Gelato"}
+                  </button>
+                  <button onClick={closeOrderDetail} className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-card/70">
+                    Close
+                  </button>
+                </div>
               </div>
 
               {orderDetailLoading && <p className="text-sm opacity-70">Loading order details...</p>}
               {orderDetailError && <p className="text-sm text-red-400">{orderDetailError}</p>}
+              {sendGelatoStatus && <p className="mb-3 text-sm text-green-400">{sendGelatoStatus}</p>}
 
               {selectedOrder && !orderDetailLoading && (
                 <div className="space-y-4 text-sm">
