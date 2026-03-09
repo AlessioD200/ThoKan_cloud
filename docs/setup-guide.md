@@ -82,6 +82,8 @@ Or use the backend API after login to call `/api/v1/admin/users/{user_id}/roles/
 
 ## Production Setup
 
+> **🚀 Quick Ubuntu Server Setup:** See [UBUNTU_DEPLOYMENT.md](../UBUNTU_DEPLOYMENT.md) for a simple guide to deploy on Ubuntu without Nginx (direct port 3000/8000 access).
+
 ### 0. Fast Ubuntu server bootstrap (recommended)
 
 On Ubuntu 22.04/24.04, run:

@@ -41,11 +41,12 @@ class Settings(BaseSettings):
     smtp_use_ssl: bool = False
 
     rate_limit_per_minute: int = 120
-    cors_origins: list[str] = [
-        "http://localhost:3000",
-        "capacitor://localhost",
-        "ionic://localhost",
-    ]
+    cors_origins: str = "http://localhost:3000,capacitor://localhost,ionic://localhost"
+    
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Parse CORS_ORIGINS env var (comma-separated) into list"""
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property
     def database_url(self) -> str:
