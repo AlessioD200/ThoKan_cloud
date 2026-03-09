@@ -74,6 +74,8 @@ export default function SettingsPage() {
   const [shopifyAccessToken, setShopifyAccessToken] = useState("");
   const [shopifyHasToken, setShopifyHasToken] = useState(false);
   const [shopifyBusy, setShopifyBusy] = useState(false);
+  const [shopifyTestStatus, setShopifyTestStatus] = useState("");
+  const [testShopifyBusy, setTestShopifyBusy] = useState(false);
   const [gelatoBaseUrl, setGelatoBaseUrl] = useState("https://order.gelatoapis.com");
   const [gelatoApiKey, setGelatoApiKey] = useState("");
   const [gelatoHasKey, setGelatoHasKey] = useState(false);
@@ -180,6 +182,18 @@ export default function SettingsPage() {
     } catch {
       // keep section optional if route not yet available
     }
+  }
+
+  async function testShopifyConnection() {
+    setTestShopifyBusy(true);
+    setShopifyTestStatus("");
+    try {
+      const result = await api<{ success: boolean; message: string; store_domain: string }>("/shopify/test");
+      setShopifyTestStatus(result.message + ` (${result.store_domain})`);
+    } catch (err) {
+      setShopifyTestStatus(err instanceof Error ? err.message : "Connection test failed");
+    }
+    setTestShopifyBusy(false);
   }
 
   async function saveShopifyConfig() {
@@ -457,7 +471,7 @@ export default function SettingsPage() {
             {shopifyHasToken && <p className="mt-1 text-xs opacity-60">A token is already stored securely.</p>}
           </div>
 
-          <div className="mt-4">
+          <div className="mt-4 flex gap-2">
             <button
               onClick={saveShopifyConfig}
               disabled={!shopifyDomain || !shopifyApiVersion || shopifyBusy}
@@ -465,7 +479,19 @@ export default function SettingsPage() {
             >
               {shopifyBusy ? "Saving..." : "Save Shopify Config"}
             </button>
+            <button
+              onClick={testShopifyConnection}
+              disabled={!shopifyDomain || testShopifyBusy || !shopifyHasToken}
+              className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium transition hover:bg-accent/10 disabled:opacity-50"
+            >
+              {testShopifyBusy ? "Testing..." : "Test Connection"}
+            </button>
           </div>
+          {shopifyTestStatus && (
+            <div className="mt-2 rounded-xl border border-border bg-card/50 p-3 text-sm">
+              <p>{shopifyTestStatus}</p>
+            </div>
+          )}
         </section>
 
         <section className="glass rounded-2xl p-5">

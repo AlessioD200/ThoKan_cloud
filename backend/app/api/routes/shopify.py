@@ -115,6 +115,26 @@ def save_shopify_config(payload: dict, current_user: User = Depends(get_current_
     return {"message": "Shopify configuration saved"}
 
 
+@router.get("/test")
+def test_shopify_connection(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    raw = _get_raw_config(db, str(current_user.id))
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shopify config not found")
+
+    try:
+        payload = _shopify_request(raw, "orders.json", params={"status": "any", "limit": 1})
+        order_count = payload.get("orders", []).__len__()
+        return {
+            "success": True,
+            "message": "Connection successful",
+            "store_domain": _normalize_store_domain(raw.get("store_domain") or ""),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Connection failed: {exc}") from exc
+
+
 @router.get("/orders")
 def list_shopify_orders(
     limit: int = Query(default=20, ge=1, le=100),
