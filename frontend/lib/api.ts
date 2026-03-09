@@ -23,6 +23,39 @@ function csrfToken() {
   return match ? decodeURIComponent(match[1]) : "";
 }
 
+async function refreshAccessToken(): Promise<boolean> {
+  try {
+    const refresh_token = localStorage.getItem("refresh_token");
+    if (!refresh_token) return false;
+
+    const headers = new Headers();
+    headers.set("Content-Type", "application/json");
+
+    const response = await fetch(`${API_BASE}/auth/refresh`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      cache: "no-store",
+      body: JSON.stringify({ refresh_token }),
+    });
+
+    if (!response.ok) {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      return false;
+    }
+
+    const data = await response.json();
+    localStorage.setItem("access_token", data.access_token);
+    localStorage.setItem("refresh_token", data.refresh_token);
+    return true;
+  } catch {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    return false;
+  }
+}
+
 export async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers);
   headers.set("Content-Type", "application/json");
@@ -37,12 +70,41 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
     headers.set("x-csrf-token", csrf);
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  let response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
     credentials: "include",
     cache: "no-store",
   });
+
+  // If 401, try refreshing token and retry once
+  if (response.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      const retryHeaders = new Headers(options?.headers);
+      retryHeaders.set("Content-Type", "application/json");
+      const newAuth = authHeaders();
+      if (newAuth.Authorization) {
+        retryHeaders.set("Authorization", newAuth.Authorization);
+      }
+      if (csrf && (options?.method || "GET").toUpperCase() !== "GET") {
+        retryHeaders.set("x-csrf-token", csrf);
+      }
+
+      response = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers: retryHeaders,
+        credentials: "include",
+        cache: "no-store",
+      });
+    } else {
+      // Refresh failed, redirect to login
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+      throw new Error("Session expired. Please log in again.");
+    }
+  }
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
@@ -67,12 +129,41 @@ export async function uploadFile(file: File, folderId?: string) {
     headers.set("x-csrf-token", csrf);
   }
 
-  const response = await fetch(`${API_BASE}/files/upload${query}`, {
+  let response = await fetch(`${API_BASE}/files/upload${query}`, {
     method: "POST",
     headers,
     credentials: "include",
     body: formData,
   });
+
+  // If 401, try refreshing token and retry once
+  if (response.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      const retryHeaders = new Headers();
+      const newToken = localStorage.getItem("access_token");
+      if (newToken) {
+        retryHeaders.set("Authorization", `Bearer ${newToken}`);
+      }
+      if (csrf) {
+        retryHeaders.set("x-csrf-token", csrf);
+      }
+
+      const formData2 = new FormData();
+      formData2.append("upload", file);
+      response = await fetch(`${API_BASE}/files/upload${query}`, {
+        method: "POST",
+        headers: retryHeaders,
+        credentials: "include",
+        body: formData2,
+      });
+    } else {
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+      throw new Error("Session expired. Please log in again.");
+    }
+  }
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
