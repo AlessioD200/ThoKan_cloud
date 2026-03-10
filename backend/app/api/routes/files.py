@@ -4,10 +4,12 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File as UploadFileField, HTTPException, UploadFile, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.deps import get_current_user, get_user_roles
 from app.models import File, FileVersion, Folder, User
@@ -18,10 +20,32 @@ from app.services.scanner import scan_file_bytes
 from app.services.storage import get_storage_driver
 
 router = APIRouter()
+optional_bearer = HTTPBearer(auto_error=False)
 
 
 def _is_admin(db: Session, user: User) -> bool:
     return "admin" in get_user_roles(db, user.id)
+
+
+def _resolve_request_user(
+    db: Session,
+    credentials: HTTPAuthorizationCredentials | None,
+    token: str | None,
+) -> User:
+    raw_token = credentials.credentials if credentials else token
+    if not raw_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    try:
+        payload = decode_access_token(raw_token)
+        user_id = uuid.UUID(payload["sub"])
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
+
+    user = db.get(User, user_id)
+    if not user or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not active")
+    return user
 
 
 @router.get("", response_model=list[FileResponse])
@@ -104,7 +128,13 @@ async def upload_file(
 
 
 @router.get("/{file_id}/download")
-def download_file(file_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def download_file(
+    file_id: str,
+    token: str | None = None,
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_bearer),
+    db: Session = Depends(get_db),
+):
+    current_user = _resolve_request_user(db, credentials, token)
     row = db.get(File, file_id)
     if not row or row.is_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")

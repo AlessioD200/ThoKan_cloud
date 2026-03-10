@@ -18,7 +18,7 @@ function resolveApiBase() {
   return "http://localhost:8000/api/v1";
 }
 
-function getApiBase() {
+export function getApiBase() {
   return resolveApiBase();
 }
 
@@ -72,6 +72,65 @@ async function refreshAccessToken(): Promise<boolean> {
     localStorage.removeItem("refresh_token");
     return false;
   }
+}
+
+export async function apiRaw(path: string, options?: RequestInit): Promise<Response> {
+  const headers = new Headers(options?.headers);
+  const auth = authHeaders();
+  if (auth.Authorization) {
+    headers.set("Authorization", auth.Authorization);
+  }
+
+  const csrf = csrfToken();
+  if (csrf && (options?.method || "GET").toUpperCase() !== "GET") {
+    headers.set("x-csrf-token", csrf);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${getApiBase()}${path}`, {
+      ...options,
+      headers,
+      credentials: "include",
+      cache: "no-store",
+    });
+  } catch (error) {
+    throw normalizeFetchError(error);
+  }
+
+  if (response.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (!refreshed) {
+      throw new Error("Session expired. Please log in again.");
+    }
+
+    const retryHeaders = new Headers(options?.headers);
+    const newAuth = authHeaders();
+    if (newAuth.Authorization) {
+      retryHeaders.set("Authorization", newAuth.Authorization);
+    }
+    if (csrf && (options?.method || "GET").toUpperCase() !== "GET") {
+      retryHeaders.set("x-csrf-token", csrf);
+    }
+
+    try {
+      response = await fetch(`${getApiBase()}${path}`, {
+        ...options,
+        headers: retryHeaders,
+        credentials: "include",
+        cache: "no-store",
+      });
+    } catch (error) {
+      throw normalizeFetchError(error);
+    }
+  }
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.detail || "Request failed");
+  }
+
+  return response;
 }
 
 export async function api<T>(path: string, options?: RequestInit): Promise<T> {

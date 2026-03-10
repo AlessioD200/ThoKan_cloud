@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { LayoutShell } from "@/components/layout-shell";
 import { api } from "@/lib/api";
 
-const DEFAULT_EMAIL_SIGNATURE = `<div style="margin-top:16px;border-top:1px solid #d1d5db;padding-top:12px;font-family:Arial,sans-serif;font-size:13px;color:#111827;line-height:1.5;"><div style="font-size:16px;font-weight:700;letter-spacing:0.3px;">ThoKan Cloud</div><div style="color:#374151;">BTW-nummer: 1034.077.111</div><div style="color:#374151;">Tel: 0475 50 67 03</div></div>`;
+const DEFAULT_EMAIL_SIGNATURE = `<div style="margin-top:16px;border-top:1px solid #d1d5db;padding-top:12px;font-family:Arial,sans-serif;font-size:13px;color:#111827;line-height:1.5;"><div style="margin-bottom:10px;"><img src="/Logo_tekst_CV.png" alt="ThoKan" style="max-height:44px;width:auto;"></div><div style="font-size:16px;font-weight:700;letter-spacing:0.3px;">ThoKan</div><div style="color:#374151;">BTW-nummer: 1034.077.111</div><div style="color:#374151;">Tel: 0475 50 67 03</div></div>`;
 
 type MailConfig = {
   email: string;

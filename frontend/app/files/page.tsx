@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { LayoutShell } from "@/components/layout-shell";
 import { UploadDropzone } from "@/components/upload-dropzone";
-import { api } from "@/lib/api";
+import { api, apiRaw, getApiBase } from "@/lib/api";
 
 type FileRow = {
   id: string;
@@ -93,8 +93,27 @@ function isPdfFile(file: FileRow): boolean {
   return mime.includes("pdf") || ext === ".pdf";
 }
 
+function isOfficeWordFile(file: FileRow): boolean {
+  const ext = getFileExtension(file.name);
+  return ext === ".docx" || ext === ".doc";
+}
+
+function isOfficeExcelFile(file: FileRow): boolean {
+  const ext = getFileExtension(file.name);
+  return ext === ".xlsx" || ext === ".xls";
+}
+
+function isOfficePowerPointFile(file: FileRow): boolean {
+  const ext = getFileExtension(file.name);
+  return ext === ".pptx" || ext === ".ppt";
+}
+
+function isOfficeFile(file: FileRow): boolean {
+  return isOfficeWordFile(file) || isOfficeExcelFile(file) || isOfficePowerPointFile(file);
+}
+
 function isPreviewSupported(file: FileRow): boolean {
-  return isImageFile(file) || isVideoFile(file) || isAudioFile(file) || isPdfFile(file) || isTextLikeFile(file);
+  return isImageFile(file) || isVideoFile(file) || isAudioFile(file) || isPdfFile(file) || isTextLikeFile(file) || isOfficeFile(file);
 }
 
 export default function FilesPage() {
@@ -105,16 +124,31 @@ export default function FilesPage() {
   const [previewFile, setPreviewFile] = useState<FileRow | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewText, setPreviewText] = useState("");
+  const [previewOfficeUrl, setPreviewOfficeUrl] = useState<string | null>(null);
+  const [officePreviewFailed, setOfficePreviewFailed] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
+  const [openActionFileId, setOpenActionFileId] = useState<string | null>(null);
+  const [userNotice, setUserNotice] = useState("");
+  const [userError, setUserError] = useState("");
 
   async function loadFiles() {
-    const [fileRows, folderRows] = await Promise.all([
-      api<FileRow[]>("/files"),
-      api<FolderRow[]>("/folders"),
-    ]);
-    setFiles(fileRows);
-    setFolders(folderRows);
+    try {
+      setUserError("");
+      setUserNotice("Bestanden worden geladen...");
+      const [fileRows, folderRows] = await Promise.all([
+        api<FileRow[]>("/files"),
+        api<FolderRow[]>("/folders"),
+      ]);
+      setFiles(fileRows);
+      setFolders(folderRows);
+      setUserNotice("Bestandslijst bijgewerkt.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Laden mislukt";
+      setUserError(`Bestanden laden mislukt: ${message}`);
+      setUserNotice("");
+      throw err;
+    }
   }
 
   useEffect(() => {
@@ -142,58 +176,83 @@ export default function FilesPage() {
   async function createFolder(e: React.FormEvent) {
     e.preventDefault();
     if (!newFolder.trim()) return;
-    await api("/folders", {
-      method: "POST",
-      body: JSON.stringify({ name: newFolder, parent_id: currentFolderId }),
-    });
-    setNewFolder("");
-    await loadFiles();
+    try {
+      setUserError("");
+      setUserNotice("Map wordt aangemaakt...");
+      await api("/folders", {
+        method: "POST",
+        body: JSON.stringify({ name: newFolder, parent_id: currentFolderId }),
+      });
+      setNewFolder("");
+      await loadFiles();
+      setUserNotice("Map aangemaakt.");
+    } catch (err) {
+      setUserError(err instanceof Error ? err.message : "Map aanmaken mislukt");
+    }
   }
 
   async function renameFile(id: string) {
     const name = prompt("New file name");
     if (!name) return;
-    await api(`/files/${id}/rename`, {
-      method: "PATCH",
-      body: JSON.stringify({ name }),
-    });
-    await loadFiles();
+    try {
+      setUserError("");
+      setUserNotice("Bestand wordt hernoemd...");
+      await api(`/files/${id}/rename`, {
+        method: "PATCH",
+        body: JSON.stringify({ name }),
+      });
+      await loadFiles();
+      setUserNotice("Bestand hernoemd.");
+    } catch (err) {
+      setUserError(err instanceof Error ? err.message : "Hernoemen mislukt");
+    }
   }
 
   async function deleteFile(id: string) {
     if (!confirm("Delete this file?")) return;
-    await api(`/files/${id}`, { method: "DELETE" });
-    await loadFiles();
+    try {
+      setUserError("");
+      setUserNotice("Bestand wordt verwijderd...");
+      await api(`/files/${id}`, { method: "DELETE" });
+      await loadFiles();
+      setUserNotice("Bestand verwijderd.");
+    } catch (err) {
+      setUserError(err instanceof Error ? err.message : "Verwijderen mislukt");
+    }
   }
 
   async function deleteFolder(id: string) {
     if (!confirm("Delete this folder?")) return;
-    await api(`/folders/${id}`, { method: "DELETE" });
-    if (currentFolderId === id) setCurrentFolderId(null);
-    await loadFiles();
+    try {
+      setUserError("");
+      setUserNotice("Map wordt verwijderd...");
+      await api(`/folders/${id}`, { method: "DELETE" });
+      if (currentFolderId === id) setCurrentFolderId(null);
+      await loadFiles();
+      setUserNotice("Map verwijderd.");
+    } catch (err) {
+      setUserError(err instanceof Error ? err.message : "Map verwijderen mislukt");
+    }
   }
 
-  function downloadFile(file: FileRow) {
-    const url = `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1"}/files/${file.id}/download`;
+  async function downloadFile(file: FileRow) {
+    const url = `${getApiBase()}/files/${file.id}/download`;
     const link = document.createElement("a");
     link.href = url;
     link.download = file.name;
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      // For download we need to add auth header, but <a> doesn't support it
-      // So we fetch and create blob URL instead
-      fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-        credentials: "include",
-      })
-        .then((r) => r.blob())
-        .then((blob) => {
-          const blobUrl = URL.createObjectURL(blob);
-          link.href = blobUrl;
-          link.click();
-          URL.revokeObjectURL(blobUrl);
-        });
-    } else {
+    try {
+      setUserError("");
+      setUserNotice(`Download voorbereiden: ${file.name}...`);
+      const response = await apiRaw(`/files/${file.id}/download`);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      link.href = blobUrl;
+      link.click();
+      URL.revokeObjectURL(blobUrl);
+      setUserNotice(`Download gestart: ${file.name}`);
+    } catch {
+      setUserError(`Download mislukt voor ${file.name}.`);
+      setUserNotice("Fallback download wordt geprobeerd...");
       link.click();
     }
   }
@@ -203,34 +262,49 @@ export default function FilesPage() {
     setPreviewLoading(true);
     setPreviewError("");
     setPreviewText("");
+    setPreviewOfficeUrl(null);
+    setOfficePreviewFailed(false);
+    setOpenActionFileId(null);
+    setUserError("");
+    setUserNotice(`Preview wordt geopend voor ${file.name}...`);
 
     try {
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
       }
 
-      const token = localStorage.getItem("access_token");
-      const url = `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1"}/files/${file.id}/download`;
-      const response = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to load preview");
+      if (isOfficeFile(file)) {
+        setUserNotice("Office-document gedetecteerd. We openen een online viewer...");
+        const token = localStorage.getItem("access_token");
+        if (!token) {
+          throw new Error("Session expired. Please log in again.");
+        }
+        const officeSource = `${getApiBase()}/files/${file.id}/download?token=${encodeURIComponent(token)}`;
+        const officeViewer = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(officeSource)}`;
+        setPreviewOfficeUrl(officeViewer);
+        setPreviewUrl(null);
+        setUserNotice("Office viewer geopend. Als dit niet werkt is je server waarschijnlijk niet publiek bereikbaar.");
+        return;
       }
 
+      setUserNotice("Bestand ophalen voor preview...");
+      const response = await apiRaw(`/files/${file.id}/download`);
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       setPreviewUrl(objectUrl);
 
       if (isTextLikeFile(file)) {
+        setUserNotice("Tekstbestand gedetecteerd. Inhoud wordt getoond...");
         const content = await blob.text();
         setPreviewText(content.slice(0, 200000));
       }
+      setUserNotice(`Preview klaar: ${file.name}`);
     } catch (err) {
-      setPreviewError(err instanceof Error ? err.message : "Preview failed");
+      const message = err instanceof Error ? err.message : "Load failed";
+      setPreviewError(message);
+      setUserError(`Preview mislukt voor ${file.name}: ${message}`);
       setPreviewUrl(null);
+      setPreviewOfficeUrl(null);
     } finally {
       setPreviewLoading(false);
     }
@@ -242,6 +316,8 @@ export default function FilesPage() {
     }
     setPreviewUrl(null);
     setPreviewText("");
+    setPreviewOfficeUrl(null);
+    setOfficePreviewFailed(false);
     setPreviewError("");
     setPreviewFile(null);
   }
@@ -255,6 +331,17 @@ export default function FilesPage() {
     <LayoutShell>
       <div className="space-y-4">
         <UploadDropzone onUploaded={loadFiles} folderId={currentFolderId} />
+
+        {userNotice && (
+          <div className="glass rounded-xl p-3 text-sm opacity-90">
+            {userNotice}
+          </div>
+        )}
+        {userError && (
+          <div className="glass rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+            {userError}
+          </div>
+        )}
 
         {/* Breadcrumb Navigation */}
         <div className="glass flex items-center gap-2 rounded-2xl p-4">
@@ -331,7 +418,7 @@ export default function FilesPage() {
             {visibleFiles.map((file) => (
               <div
                 key={file.id}
-                className="flex items-center justify-between rounded-xl border border-border p-3 text-sm cursor-pointer transition hover:bg-accent/5"
+                className="relative flex items-center justify-between rounded-xl border border-border p-3 text-sm cursor-pointer transition hover:bg-accent/5"
                 onDoubleClick={() => void openPreview(file)}
               >
                 <div className="flex flex-1 items-center gap-3">
@@ -340,6 +427,9 @@ export default function FilesPage() {
                     isVideoFile(file) ? "🎥" :
                     isAudioFile(file) ? "🎵" :
                     isPdfFile(file) ? "📄" : 
+                    isOfficeWordFile(file) ? "📝" :
+                    isOfficeExcelFile(file) ? "📊" :
+                    isOfficePowerPointFile(file) ? "📽️" :
                      isTextLikeFile(file) ? "📝" : "📎"}
                   </div>
                   <div className="flex-1">
@@ -347,57 +437,61 @@ export default function FilesPage() {
                     <p className="text-xs opacity-70">{formatBytes(file.size_bytes)} • {file.mime_type}</p>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {isPreviewSupported(file) && (
-                    <button
-                      className="rounded-lg border border-border px-3 py-1 transition hover:bg-accent/10"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void openPreview(file);
-                      }}
+                <div className="relative">
+                  <button
+                    className="rounded-lg border border-border px-3 py-1 text-lg leading-none transition hover:bg-accent/10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenActionFileId((prev) => (prev === file.id ? null : file.id));
+                    }}
+                    aria-label="Bestandsacties"
+                    title="Bestandsacties"
+                  >
+                    ⋯
+                  </button>
+
+                  {openActionFileId === file.id && (
+                    <div
+                      className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-border bg-card p-1 shadow-lg"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      Open
-                    </button>
+                      {isPreviewSupported(file) && (
+                        <button
+                          className="w-full rounded-lg px-3 py-2 text-left text-sm transition hover:bg-accent/10"
+                          onClick={() => void openPreview(file)}
+                        >
+                          Openen
+                        </button>
+                      )}
+                      <button
+                        className="w-full rounded-lg px-3 py-2 text-left text-sm transition hover:bg-accent/10"
+                        onClick={() => {
+                          void downloadFile(file);
+                          setOpenActionFileId(null);
+                        }}
+                      >
+                        Download
+                      </button>
+                      <button
+                        className="w-full rounded-lg px-3 py-2 text-left text-sm transition hover:bg-accent/10"
+                        onClick={() => {
+                          void renameFile(file.id);
+                          setOpenActionFileId(null);
+                        }}
+                      >
+                        Hernoemen
+                      </button>
+                      <button
+                        className="w-full rounded-lg px-3 py-2 text-left text-sm text-red-400 transition hover:bg-red-500/20"
+                        onClick={() => {
+                          void deleteFile(file.id);
+                          setOpenActionFileId(null);
+                        }}
+                      >
+                        Verwijderen
+                      </button>
+                    </div>
                   )}
-                  {isPreviewSupported(file) && (
-                    <button
-                      className="rounded-lg border border-border px-3 py-1 transition hover:bg-accent/10"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void openPreview(file);
-                      }}
-                      title="Of dubbelklik om te openen"
-                    >
-                      Bekijk
-                    </button>
-                  )}
-                  <button
-                    className="rounded-lg border border-border px-3 py-1 transition hover:bg-accent/10"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      downloadFile(file);
-                    }}
-                  >
-                    Download
-                  </button>
-                  <button
-                    className="rounded-lg border border-border px-3 py-1 transition hover:bg-accent/10"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      renameFile(file.id);
-                    }}
-                  >
-                    Rename
-                  </button>
-                  <button
-                    className="rounded-lg border border-border px-3 py-1 transition hover:bg-red-500/20"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteFile(file.id);
-                    }}
-                  >
-                    Delete
-                  </button>
                 </div>
               </div>
             ))}
@@ -481,6 +575,35 @@ export default function FilesPage() {
                         File is too large. Showing first 200KB. <button onClick={() => downloadFile(previewFile)} className="underline hover:opacity-100">Download full file</button>
                       </p>
                     )}
+                  </div>
+                )}
+
+                {!previewLoading && !previewError && previewOfficeUrl && isOfficeFile(previewFile) && (
+                  <div className="space-y-3">
+                    <p className="text-xs opacity-70">
+                      Office preview gebruikt een externe viewer. Als je een fout ziet, controleer of je server publiek bereikbaar is.
+                    </p>
+                    <button
+                      className="rounded-lg border border-border px-3 py-1 text-sm font-medium transition hover:bg-accent/10"
+                      onClick={() => void downloadFile(previewFile)}
+                    >
+                      Open lokaal via download
+                    </button>
+                    {officePreviewFailed && (
+                      <p className="text-sm text-red-300">
+                        Office viewer kon niet laden. Gebruik "Open lokaal via download".
+                      </p>
+                    )}
+                    <iframe
+                      src={previewOfficeUrl}
+                      className="h-[70vh] w-full rounded-lg"
+                      title={previewFile.name}
+                      onError={() => {
+                        setOfficePreviewFailed(true);
+                        setUserError("Office preview kon niet laden. Download wordt aanbevolen.");
+                        setUserNotice("");
+                      }}
+                    />
                   </div>
                 )}
 

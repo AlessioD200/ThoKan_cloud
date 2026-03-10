@@ -21,16 +21,22 @@ from app.services.encryption import decrypt_bytes, encrypt_bytes
 router = APIRouter()
 
 
+_APP_BASE_URL = (settings.app_url or "http://localhost:3000").rstrip("/")
+_DEFAULT_LOGO_URL = f"{_APP_BASE_URL}/Logo_tekst_CV.png"
+
+
 DEFAULT_EMAIL_SIGNATURE_HTML = (
     '<div style="margin-top:16px;border-top:1px solid #d1d5db;padding-top:12px;'
     'font-family:Arial,sans-serif;font-size:13px;color:#111827;line-height:1.5;">'
-    '<div style="font-size:16px;font-weight:700;letter-spacing:0.3px;">ThoKan Cloud</div>'
+    f'<div style="margin-bottom:10px;"><img src="{_DEFAULT_LOGO_URL}" alt="ThoKan" '
+    'style="max-height:44px;width:auto;"></div>'
+    '<div style="font-size:16px;font-weight:700;letter-spacing:0.3px;">ThoKan</div>'
     '<div style="color:#374151;">BTW-nummer: 1034.077.111</div>'
     '<div style="color:#374151;">Tel: 0475 50 67 03</div>'
     '</div>'
 )
 
-DEFAULT_EMAIL_SIGNATURE_TEXT = "ThoKan Cloud\nBTW-nummer: 1034.077.111\nTel: 0475 50 67 03"
+DEFAULT_EMAIL_SIGNATURE_TEXT = "ThoKan\nBTW-nummer: 1034.077.111\nTel: 0475 50 67 03"
 
 
 def _mail_key(user_id: str) -> str:
