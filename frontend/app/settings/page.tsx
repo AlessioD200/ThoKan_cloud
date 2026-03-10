@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LayoutShell } from "@/components/layout-shell";
 import { api, apiRaw } from "@/lib/api";
 
@@ -32,6 +32,7 @@ type SystemInfo = {
 
 type UpdatePackage = {
   name: string;
+  channel: string;
   size_bytes: number;
   modified_at: string;
 };
@@ -39,11 +40,22 @@ type UpdatePackage = {
 type UpdateStatus = {
   state: string;
   package_name?: string | null;
+  channel?: string | null;
   started_at?: string | null;
   finished_at?: string | null;
   return_code?: number | null;
   stdout?: string | null;
   stderr?: string | null;
+};
+
+type UpdateConfig = {
+  selected_channel: "stable" | "beta";
+  stable_source_url: string;
+  beta_source_url: string;
+  auto_rebuild_docker: boolean;
+  auto_update_ubuntu: boolean;
+  docker_update_command: string;
+  ubuntu_update_command: string;
 };
 
 type ShopifyConfig = {
@@ -67,7 +79,10 @@ export default function SettingsPage() {
   const [packages, setPackages] = useState<UpdatePackage[]>([]);
   const [selectedPackage, setSelectedPackage] = useState("");
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+  const [updateConfig, setUpdateConfig] = useState<UpdateConfig | null>(null);
+  const [updateChannel, setUpdateChannel] = useState<"stable" | "beta">("stable");
   const [updateBusy, setUpdateBusy] = useState(false);
+  const [fetchBusy, setFetchBusy] = useState(false);
   const [dryRun, setDryRun] = useState(true);
   const [updateFile, setUpdateFile] = useState<File | null>(null);
   const [shopifyDomain, setShopifyDomain] = useState("");
@@ -85,10 +100,13 @@ export default function SettingsPage() {
   const [gelatoHasKey, setGelatoHasKey] = useState(false);
   const [gelatoSkuMapText, setGelatoSkuMapText] = useState("{}");
   const [gelatoBusy, setGelatoBusy] = useState(false);
+  const [sectionFilter, setSectionFilter] = useState<"all" | "core" | "storage" | "integrations" | "updates">("all");
+  const [sectionSearch, setSectionSearch] = useState("");
 
   useEffect(() => {
     loadInfo();
     loadUpdateData();
+    loadUpdateConfig();
     loadShopifyConfig();
     loadGelatoConfig();
   }, []);
@@ -121,6 +139,50 @@ export default function SettingsPage() {
     }
   }
 
+  async function loadUpdateConfig() {
+    try {
+      const config = await api<UpdateConfig>("/system/update/config");
+      setUpdateConfig(config);
+      setUpdateChannel(config.selected_channel || "stable");
+    } catch {
+      // keep section optional if route not yet available
+    }
+  }
+
+  async function saveUpdateConfig() {
+    if (!updateConfig) return;
+    setUpdateBusy(true);
+    setStatus("");
+    try {
+      const saved = await api<UpdateConfig>("/system/update/config", {
+        method: "PUT",
+        body: JSON.stringify({ ...updateConfig, selected_channel: updateChannel }),
+      });
+      setUpdateConfig(saved);
+      setStatus("Update channel settings saved");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Failed to save update settings");
+    }
+    setUpdateBusy(false);
+  }
+
+  async function fetchLatestUpdate() {
+    setFetchBusy(true);
+    setStatus("");
+    try {
+      const fetched = await api<UpdatePackage>("/system/update/fetch-latest", {
+        method: "POST",
+        body: JSON.stringify({ channel: updateChannel }),
+      });
+      setStatus(`Latest ${updateChannel} update fetched: ${fetched.name}`);
+      await loadUpdateData();
+      setSelectedPackage(fetched.name);
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Failed to fetch latest update");
+    }
+    setFetchBusy(false);
+  }
+
   async function uploadUpdatePackage() {
     if (!updateFile) return;
     setUpdateBusy(true);
@@ -128,6 +190,7 @@ export default function SettingsPage() {
     try {
       const formData = new FormData();
       formData.append("upload", updateFile);
+      formData.append("channel", updateChannel);
       const response = await apiRaw("/system/update/upload", {
         method: "POST",
         body: formData,
@@ -149,7 +212,14 @@ export default function SettingsPage() {
     try {
       const result = await api<UpdateStatus>("/system/update/apply", {
         method: "POST",
-        body: JSON.stringify({ package_name: selectedPackage, script_name: "update.sh", dry_run: dryRun }),
+        body: JSON.stringify({
+          package_name: selectedPackage,
+          channel: updateChannel,
+          script_name: "update.sh",
+          dry_run: dryRun,
+          auto_rebuild_docker: updateConfig?.auto_rebuild_docker,
+          auto_update_ubuntu: updateConfig?.auto_update_ubuntu,
+        }),
       });
       setUpdateStatus(result);
       setStatus(result.state === "success" ? "Update completed" : "Update failed");
@@ -280,6 +350,38 @@ export default function SettingsPage() {
     return "bg-green-500";
   }
 
+  const visibleSectionCount = useMemo(() => {
+    const query = sectionSearch.trim().toLowerCase();
+    const sections = [
+      { key: "core", title: "System Information" },
+      { key: "storage", title: "Current Storage" },
+      { key: "storage", title: "Available Mount Points" },
+      { key: "integrations", title: "Shopify Integration" },
+      { key: "integrations", title: "Gelato Integration" },
+      { key: "updates", title: "System Updates" },
+    ];
+
+    return sections.filter((section) => {
+      if (sectionFilter !== "all" && section.key !== sectionFilter) return false;
+      if (!query) return true;
+      return section.title.toLowerCase().includes(query);
+    }).length;
+  }, [sectionFilter, sectionSearch]);
+
+  const channelPackages = useMemo(() => {
+    return packages.filter((pkg) => {
+      if (!pkg.channel || pkg.channel === "manual") return true;
+      return pkg.channel === updateChannel;
+    });
+  }, [packages, updateChannel]);
+
+  function shouldShowSection(sectionKey: "core" | "storage" | "integrations" | "updates", title: string): boolean {
+    if (sectionFilter !== "all" && sectionFilter !== sectionKey) return false;
+    const query = sectionSearch.trim().toLowerCase();
+    if (!query) return true;
+    return title.toLowerCase().includes(query);
+  }
+
   return (
     <LayoutShell>
       <div className="space-y-4">
@@ -297,12 +399,51 @@ export default function SettingsPage() {
           </button>
         </div>
 
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-xl border border-border bg-card/30 p-3">
+            <p className="text-xs opacity-60">Visible sections</p>
+            <p className="mt-1 text-2xl font-semibold">{visibleSectionCount}</p>
+          </div>
+          <div className="rounded-xl border border-border bg-card/30 p-3">
+            <p className="text-xs opacity-60">Available mounts</p>
+            <p className="mt-1 text-2xl font-semibold">{info?.available_mounts?.length || 0}</p>
+          </div>
+          <div className="rounded-xl border border-border bg-card/30 p-3">
+            <p className="text-xs opacity-60">Configured integrations</p>
+            <p className="mt-1 text-2xl font-semibold">{Number(shopifyHasToken) + Number(gelatoHasKey)}</p>
+          </div>
+        </div>
+
+        <section className="glass sticky top-3 z-20 rounded-2xl p-4 backdrop-blur">
+          <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+            <input
+              type="text"
+              value={sectionSearch}
+              onChange={(e) => setSectionSearch(e.target.value)}
+              placeholder="Find section (system, storage, integration, updates)"
+              className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
+            />
+            <select
+              value={sectionFilter}
+              onChange={(e) => setSectionFilter(e.target.value as "all" | "core" | "storage" | "integrations" | "updates")}
+              className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="all">All sections</option>
+              <option value="core">Core</option>
+              <option value="storage">Storage</option>
+              <option value="integrations">Integrations</option>
+              <option value="updates">Updates</option>
+            </select>
+          </div>
+        </section>
+
         {status && (
           <div className="rounded-xl border border-border bg-card/50 p-4 text-sm">
             <p>{status}</p>
           </div>
         )}
 
+        {shouldShowSection("core", "System Information") && (
         <section className="glass rounded-2xl p-5">
           <h2 className="text-xl font-semibold">System Information</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -324,7 +465,9 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+        )}
 
+        {shouldShowSection("storage", "Current Storage") && (
         <section className="glass rounded-2xl p-5">
           <h2 className="text-xl font-semibold">Current Storage</h2>
           <div className="mt-4 rounded-xl border border-border bg-card/30 p-4">
@@ -368,7 +511,9 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+        )}
 
+        {shouldShowSection("storage", "Available Mount Points") && (
         <section className="glass rounded-2xl p-5">
           <h2 className="text-xl font-semibold">Available Mount Points</h2>
           <p className="mt-1 text-sm opacity-60">Detected disks and mount points on this system</p>
@@ -426,7 +571,9 @@ export default function SettingsPage() {
             )}
           </div>
         </section>
+        )}
 
+        {shouldShowSection("integrations", "Shopify Integration") && (
         <section className="glass rounded-2xl p-5">
           <h2 className="text-xl font-semibold">Shopify Integration</h2>
           <p className="mt-1 text-sm opacity-60">Connect your Shopify store to display recent orders in the dashboard.</p>
@@ -524,7 +671,9 @@ export default function SettingsPage() {
             </div>
           )}
         </section>
+        )}
 
+        {shouldShowSection("integrations", "Gelato Integration") && (
         <section className="glass rounded-2xl p-5">
           <h2 className="text-xl font-semibold">Gelato Integration</h2>
           <p className="mt-1 text-sm opacity-60">
@@ -574,12 +723,77 @@ export default function SettingsPage() {
             </button>
           </div>
         </section>
+        )}
 
+        {shouldShowSection("updates", "System Updates") && (
         <section className="glass rounded-2xl p-5">
           <h2 className="text-xl font-semibold">System Updates</h2>
-          <p className="mt-1 text-sm opacity-60">
-            Upload your own update package (.zip/.tar/.tar.gz/.tgz) with an update.sh in package root.
-          </p>
+          <p className="mt-1 text-sm opacity-60">Gebruik stabiele of beta channel updates zonder GitHub-koppeling, direct vanaf je eigen updatebron.</p>
+
+          <div className="mt-4 grid gap-3 rounded-xl border border-border bg-card/30 p-4 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium">Update channel</label>
+              <select
+                value={updateChannel}
+                onChange={(e) => setUpdateChannel(e.target.value as "stable" | "beta")}
+                className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+              >
+                <option value="stable">stable</option>
+                <option value="beta">beta</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Latest source URL ({updateChannel})</label>
+              <input
+                type="text"
+                value={updateChannel === "stable" ? updateConfig?.stable_source_url || "" : updateConfig?.beta_source_url || ""}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setUpdateConfig((prev) => {
+                    if (!prev) return prev;
+                    return updateChannel === "stable"
+                      ? { ...prev, stable_source_url: value }
+                      : { ...prev, beta_source_url: value };
+                  });
+                }}
+                placeholder="https://updates.example.com/stable/latest.json"
+                className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+              />
+              <p className="mt-1 text-xs opacity-60">Ondersteunt direct archive URL (.zip/.tar/.tar.gz/.tgz) of manifest .json met package_url.</p>
+            </div>
+            <label className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">
+              <input
+                type="checkbox"
+                checked={Boolean(updateConfig?.auto_rebuild_docker)}
+                onChange={(e) => setUpdateConfig((prev) => (prev ? { ...prev, auto_rebuild_docker: e.target.checked } : prev))}
+              />
+              Auto Docker rebuild na update
+            </label>
+            <label className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">
+              <input
+                type="checkbox"
+                checked={Boolean(updateConfig?.auto_update_ubuntu)}
+                onChange={(e) => setUpdateConfig((prev) => (prev ? { ...prev, auto_update_ubuntu: e.target.checked } : prev))}
+              />
+              Auto Ubuntu updates na update
+            </label>
+            <div className="md:col-span-2 flex flex-wrap gap-2">
+              <button
+                onClick={saveUpdateConfig}
+                disabled={!updateConfig || updateBusy}
+                className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+              >
+                {updateBusy ? "Saving..." : "Save update settings"}
+              </button>
+              <button
+                onClick={fetchLatestUpdate}
+                disabled={fetchBusy || !updateConfig}
+                className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium transition hover:bg-accent/10 disabled:opacity-50"
+              >
+                {fetchBusy ? "Fetching..." : `Fetch latest ${updateChannel}`}
+              </button>
+            </div>
+          </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
             <input
@@ -603,10 +817,10 @@ export default function SettingsPage() {
               onChange={(e) => setSelectedPackage(e.target.value)}
               className="rounded-xl border border-border bg-card px-3 py-2 text-sm"
             >
-              <option value="">Select update package</option>
-              {packages.map((pkg) => (
+              <option value="">Select update package ({updateChannel})</option>
+              {channelPackages.map((pkg) => (
                 <option key={pkg.name} value={pkg.name}>
-                  {pkg.name}
+                  [{pkg.channel || "manual"}] {pkg.name}
                 </option>
               ))}
             </select>
@@ -628,6 +842,7 @@ export default function SettingsPage() {
               <p>
                 Status: <span className="font-medium">{updateStatus.state}</span>
               </p>
+              {updateStatus.channel && <p className="mt-1">Channel: {updateStatus.channel}</p>}
               {updateStatus.package_name && <p className="mt-1">Package: {updateStatus.package_name}</p>}
               {typeof updateStatus.return_code === "number" && <p className="mt-1">Return code: {updateStatus.return_code}</p>}
               {updateStatus.started_at && <p className="mt-1 opacity-70">Started: {new Date(updateStatus.started_at).toLocaleString()}</p>}
@@ -645,6 +860,13 @@ export default function SettingsPage() {
             </div>
           )}
         </section>
+        )}
+
+        {visibleSectionCount === 0 && (
+          <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm opacity-60">
+            No settings sections match this filter.
+          </div>
+        )}
       </div>
     </LayoutShell>
   );

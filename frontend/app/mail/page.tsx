@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LayoutShell } from "@/components/layout-shell";
 import { api } from "@/lib/api";
 
@@ -46,6 +46,10 @@ export default function MailPage() {
   const [config, setConfig] = useState<MailConfig | null>(null);
   const [password, setPassword] = useState("");
   const [messages, setMessages] = useState<MailMessage[]>([]);
+  const [inboxSearch, setInboxSearch] = useState("");
+  const [inboxSort, setInboxSort] = useState<"newest" | "oldest" | "subject" | "sender">("newest");
+  const [snippetOnly, setSnippetOnly] = useState(false);
+  const [loadingInbox, setLoadingInbox] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<MailDetail | null>(null);
   const [emailHtmlUrl, setEmailHtmlUrl] = useState<string | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -122,6 +126,7 @@ export default function MailPage() {
   }
 
   async function loadInbox() {
+    setLoadingInbox(true);
     setStatus("");
     try {
       const response = await api<{ messages: MailMessage[]; total: number; limit: number; skip: number }>(`/mail/inbox?limit=50&skip=${inboxPage * 50}`);
@@ -130,7 +135,25 @@ export default function MailPage() {
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Inbox load failed");
     }
+    setLoadingInbox(false);
   }
+
+  const visibleMessages = useMemo(() => {
+    const query = inboxSearch.trim().toLowerCase();
+    const filtered = messages.filter((msg) => {
+      if (snippetOnly && !msg.snippet?.trim()) return false;
+      if (!query) return true;
+      return [msg.subject, msg.from, msg.snippet].some((part) => part?.toLowerCase().includes(query));
+    });
+
+    return [...filtered].sort((a, b) => {
+      if (inboxSort === "subject") return (a.subject || "").localeCompare(b.subject || "");
+      if (inboxSort === "sender") return (a.from || "").localeCompare(b.from || "");
+      const timeA = new Date(a.date || 0).getTime();
+      const timeB = new Date(b.date || 0).getTime();
+      return inboxSort === "oldest" ? timeA - timeB : timeB - timeA;
+    });
+  }, [messages, inboxSearch, inboxSort, snippetOnly]);
 
   function decodeHtmlEntities(html: string): string {
     const textarea = document.createElement('textarea');
@@ -252,7 +275,7 @@ export default function MailPage() {
     <LayoutShell>
       <div className="space-y-4">
         {/* Header with action buttons */}
-        <div className="glass flex items-center justify-between rounded-2xl p-4">
+        <div className="glass sticky top-3 z-20 flex items-center justify-between rounded-2xl p-4 backdrop-blur">
           <h2 className="text-xl font-semibold">Mailbox</h2>
           <div className="flex gap-2">
             <button
@@ -451,6 +474,44 @@ export default function MailPage() {
 
         {/* Inbox */}
         <section className="glass rounded-2xl p-5">
+          <div className="mb-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-border bg-card/30 p-3">
+              <p className="text-xs opacity-60">Loaded on this page</p>
+              <p className="mt-1 text-xl font-semibold">{messages.length}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card/30 p-3">
+              <p className="text-xs opacity-60">Visible after filters</p>
+              <p className="mt-1 text-xl font-semibold">{visibleMessages.length}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card/30 p-3">
+              <p className="text-xs opacity-60">Total mailbox messages</p>
+              <p className="mt-1 text-xl font-semibold">{totalMessages}</p>
+            </div>
+          </div>
+
+          <div className="mb-4 grid gap-2 md:grid-cols-[1fr_auto_auto]">
+            <input
+              value={inboxSearch}
+              onChange={(e) => setInboxSearch(e.target.value)}
+              placeholder="Search by sender, subject, or snippet"
+              className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
+            />
+            <select
+              value={inboxSort}
+              onChange={(e) => setInboxSort(e.target.value as "newest" | "oldest" | "subject" | "sender")}
+              className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="subject">Subject A-Z</option>
+              <option value="sender">Sender A-Z</option>
+            </select>
+            <label className="flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm">
+              <input type="checkbox" checked={snippetOnly} onChange={(e) => setSnippetOnly(e.target.checked)} />
+              Snippet only
+            </label>
+          </div>
+
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-medium">Inbox ({messages.length}/{totalMessages})</h3>
             <div className="flex gap-2 text-xs">
@@ -476,7 +537,7 @@ export default function MailPage() {
             </div>
           </div>
           <ul className="max-h-[600px] space-y-2 overflow-y-auto">
-            {messages.map((msg) => (
+            {visibleMessages.map((msg) => (
               <li
                 key={msg.id}
                 className="cursor-pointer rounded-xl border border-border p-3 transition hover:bg-accent/10"
@@ -498,9 +559,14 @@ export default function MailPage() {
                 </div>
               </li>
             ))}
-            {messages.length === 0 && (
+            {loadingInbox && (
               <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm opacity-60">
-                No messages. Click "Refresh" to load your inbox.
+                Loading inbox...
+              </li>
+            )}
+            {!loadingInbox && visibleMessages.length === 0 && (
+              <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm opacity-60">
+                No messages match this filter.
               </li>
             )}
           </ul>

@@ -395,7 +395,7 @@ def get_inbox(limit: int = 50, skip: int = 0, current_user: User = Depends(get_c
         
         messages = []
         for message_id in reversed(selected_ids):
-            fetch_status, message_data = client.fetch(message_id, "(RFC822)")
+            fetch_status, message_data = client.fetch(message_id, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])")
             if fetch_status != "OK" or not message_data:
                 continue
             raw_message = message_data[0][1]
@@ -406,7 +406,7 @@ def get_inbox(limit: int = 50, skip: int = 0, current_user: User = Depends(get_c
                     "from": _decode_mime(parsed.get("From")),
                     "subject": _decode_mime(parsed.get("Subject")),
                     "date": parsed.get("Date", ""),
-                    "snippet": _extract_text_snippet(parsed),
+                    "snippet": "",
                 }
             )
         client.logout()

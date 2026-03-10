@@ -90,6 +90,13 @@ cp /etc/letsencrypt/live/yourdomain.com/privkey.pem docker/ssl/key.pem
 docker-compose -f docker-compose.prod.yml up -d --build
 ```
 
+## Update Channels (Stable/Beta)
+
+The platform supports two update channels with one-click server updates from your own update host (no GitHub dependency), including optional automatic Docker rebuild and Ubuntu package updates.
+
+- Setup guide: [docs/update-channels.md](docs/update-channels.md)
+- Example files: [scripts/update_templates](scripts/update_templates)
+
 ## Core Features
 
 ### Authentication

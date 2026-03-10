@@ -5,10 +5,13 @@ import subprocess
 import tarfile
 import tempfile
 import zipfile
+import json
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -19,6 +22,7 @@ from app.models import SystemSetting, User
 
 router = APIRouter()
 UPDATE_STATUS_KEY = "system_update_last_status"
+UPDATE_CONFIG_KEY = "system_update_config"
 
 
 class StorageInfo(BaseModel):
@@ -49,6 +53,7 @@ class SystemInfo(BaseModel):
 
 class UpdatePackageInfo(BaseModel):
     name: str
+    channel: str
     size_bytes: int
     modified_at: str
 
@@ -56,6 +61,7 @@ class UpdatePackageInfo(BaseModel):
 class UpdateStatus(BaseModel):
     state: str
     package_name: str | None = None
+    channel: str | None = None
     started_at: str | None = None
     finished_at: str | None = None
     return_code: int | None = None
@@ -65,8 +71,30 @@ class UpdateStatus(BaseModel):
 
 class ApplyUpdateRequest(BaseModel):
     package_name: str
+    channel: str = "stable"
     script_name: str = "update.sh"
     dry_run: bool = False
+    auto_rebuild_docker: bool | None = None
+    auto_update_ubuntu: bool | None = None
+
+
+class UpdateConfig(BaseModel):
+    selected_channel: str = "stable"
+    stable_source_url: str = ""
+    beta_source_url: str = ""
+    auto_rebuild_docker: bool = True
+    auto_update_ubuntu: bool = True
+    docker_update_command: str = "docker compose up -d --build"
+    ubuntu_update_command: str = "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade"
+
+
+class FetchUpdateRequest(BaseModel):
+    channel: str = "stable"
+
+
+def _normalize_channel(value: str | None) -> str:
+    channel = (value or "stable").strip().lower()
+    return channel if channel in {"stable", "beta"} else "stable"
 
 
 def _updates_dir() -> Path:
@@ -82,6 +110,87 @@ def _is_allowed_package(filename: str) -> bool:
 
 def _safe_name(value: str) -> str:
     return "".join(ch for ch in value if ch.isalnum() or ch in {"-", "_", "."})
+
+
+def _default_update_config() -> dict:
+    return UpdateConfig().model_dump()
+
+
+def _load_update_config(db: Session) -> dict:
+    row = db.query(SystemSetting).filter(SystemSetting.key == UPDATE_CONFIG_KEY).first()
+    if not row or not isinstance(row.value, dict):
+        return _default_update_config()
+
+    cfg = _default_update_config()
+    cfg.update(row.value)
+    cfg["selected_channel"] = _normalize_channel(str(cfg.get("selected_channel") or "stable"))
+    return cfg
+
+
+def _save_update_config(db: Session, payload: dict) -> dict:
+    cfg = _default_update_config()
+    cfg.update(payload)
+    cfg["selected_channel"] = _normalize_channel(str(cfg.get("selected_channel") or "stable"))
+
+    row = db.query(SystemSetting).filter(SystemSetting.key == UPDATE_CONFIG_KEY).first()
+    if row:
+        row.value = cfg
+        row.category = "system"
+    else:
+        row = SystemSetting(key=UPDATE_CONFIG_KEY, value=cfg, category="system")
+        db.add(row)
+    db.commit()
+    return cfg
+
+
+def _parse_package_channel(filename: str) -> str:
+    parts = filename.split("_", 2)
+    if len(parts) >= 3 and parts[1] in {"stable", "beta"}:
+        return parts[1]
+    return "manual"
+
+
+def _download_bytes(url: str) -> bytes:
+    req = Request(url, headers={"User-Agent": "ThoKan-Cloud-Updater/1.0"})
+    with urlopen(req, timeout=45) as response:
+        return response.read()
+
+
+def _resolve_source_url(source_url: str) -> tuple[str, str | None]:
+    parsed = urlparse(source_url)
+    if parsed.scheme not in {"http", "https"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Update source must be an http(s) URL")
+
+    lower_path = parsed.path.lower()
+    if lower_path.endswith(".zip") or lower_path.endswith(".tar") or lower_path.endswith(".tar.gz") or lower_path.endswith(".tgz"):
+        return source_url, None
+
+    if lower_path.endswith(".json"):
+        raw = _download_bytes(source_url)
+        try:
+            manifest = json.loads(raw.decode("utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid update manifest JSON") from exc
+
+        package_url = str(manifest.get("package_url") or "").strip()
+        if not package_url:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Manifest is missing package_url")
+        version = str(manifest.get("version") or "").strip() or None
+        return package_url, version
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Source URL must point to an archive file or a manifest .json",
+    )
+
+
+def _run_shell_command(command: str, timeout_seconds: int = 3600) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash", "-lc", command],
+        capture_output=True,
+        text=True,
+        timeout=timeout_seconds,
+    )
 
 
 def _save_update_status(db: Session, payload: dict) -> None:
@@ -218,6 +327,7 @@ def list_update_packages(
             packages.append(
                 UpdatePackageInfo(
                     name=item.name,
+                    channel=_parse_package_channel(item.name),
                     size_bytes=stat.st_size,
                     modified_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
                 )
@@ -225,9 +335,29 @@ def list_update_packages(
     return packages
 
 
+@router.get("/update/config", response_model=UpdateConfig)
+def get_update_config(
+    current_user: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    return UpdateConfig(**_load_update_config(db))
+
+
+@router.put("/update/config", response_model=UpdateConfig)
+def save_update_config(
+    payload: UpdateConfig,
+    current_user: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    return UpdateConfig(**_save_update_config(db, payload.model_dump()))
+
+
 @router.post("/update/upload")
 def upload_update_package(
     upload: UploadFile = File(...),
+    channel: str = Form("stable"),
     current_user: User = Depends(get_current_user),
     _: User = Depends(require_admin),
 ):
@@ -238,8 +368,10 @@ def upload_update_package(
     if not safe_original or not _is_allowed_package(safe_original):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only .zip, .tar, .tar.gz and .tgz are allowed")
 
+    normalized_channel = _normalize_channel(channel)
+
     timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
-    target_name = f"{timestamp}_{safe_original}"
+    target_name = f"{timestamp}_{normalized_channel}_{safe_original}"
     target_path = _updates_dir() / target_name
 
     with target_path.open("wb") as destination:
@@ -251,8 +383,52 @@ def upload_update_package(
 
     return {
         "message": "Update package uploaded",
+        "channel": normalized_channel,
         "package_name": target_name,
     }
+
+
+@router.post("/update/fetch-latest", response_model=UpdatePackageInfo)
+def fetch_latest_update_package(
+    payload: FetchUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    channel = _normalize_channel(payload.channel)
+    cfg = _load_update_config(db)
+    source_url_value = cfg.get("stable_source_url") if channel == "stable" else cfg.get("beta_source_url")
+    source_url = str(source_url_value or "").strip()
+    if not source_url:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"No source URL configured for {channel} channel")
+
+    package_url, version = _resolve_source_url(source_url)
+    parsed = urlparse(package_url)
+    original_name = _safe_name(Path(parsed.path).name)
+    if not original_name or not _is_allowed_package(original_name):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Resolved package URL is not a supported archive")
+
+    timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+    version_part = f"{_safe_name(version)}_" if version else ""
+    target_name = f"{timestamp}_{channel}_{version_part}{original_name}"
+    target_path = _updates_dir() / target_name
+
+    try:
+        content = _download_bytes(package_url)
+        with target_path.open("wb") as destination:
+            destination.write(content)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to download update package: {exc}") from exc
+
+    stat = target_path.stat()
+    return UpdatePackageInfo(
+        name=target_name,
+        channel=channel,
+        size_bytes=stat.st_size,
+        modified_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
+    )
 
 
 @router.get("/update/status", response_model=UpdateStatus)
@@ -274,6 +450,9 @@ def apply_update_package(
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    channel = _normalize_channel(payload.channel)
+    cfg = _load_update_config(db)
+
     update_dir = _updates_dir()
     package_name = _safe_name(payload.package_name)
     if not package_name:
@@ -292,6 +471,7 @@ def apply_update_package(
         {
             "state": "running",
             "package_name": package_name,
+            "channel": channel,
             "started_at": started_at,
             "finished_at": None,
             "return_code": None,
@@ -326,6 +506,7 @@ def apply_update_package(
 
             env = os.environ.copy()
             env["THOKAN_DRY_RUN"] = "1" if payload.dry_run else "0"
+            env["THOKAN_UPDATE_CHANNEL"] = channel
 
             result = subprocess.run(
                 ["bash", str(script_path)],
@@ -336,10 +517,43 @@ def apply_update_package(
                 env=env,
             )
 
+            auto_rebuild_docker = cfg.get("auto_rebuild_docker", True) if payload.auto_rebuild_docker is None else payload.auto_rebuild_docker
+            auto_update_ubuntu = cfg.get("auto_update_ubuntu", False) if payload.auto_update_ubuntu is None else payload.auto_update_ubuntu
+
+            post_stdout: list[str] = []
+            post_stderr: list[str] = []
+
+            if result.returncode == 0 and not payload.dry_run and auto_rebuild_docker:
+                docker_command = str(cfg.get("docker_update_command") or "docker compose up -d --build")
+                docker_result = _run_shell_command(docker_command)
+                post_stdout.append(f"\n[Docker rebuild]\n{docker_result.stdout or ''}")
+                post_stderr.append(f"\n[Docker rebuild]\n{docker_result.stderr or ''}")
+                if docker_result.returncode != 0:
+                    result = subprocess.CompletedProcess(
+                        args=result.args,
+                        returncode=docker_result.returncode,
+                        stdout=(result.stdout or "") + "".join(post_stdout),
+                        stderr=(result.stderr or "") + "".join(post_stderr),
+                    )
+
+            if result.returncode == 0 and not payload.dry_run and auto_update_ubuntu:
+                ubuntu_command = str(cfg.get("ubuntu_update_command") or "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade")
+                ubuntu_result = _run_shell_command(ubuntu_command)
+                post_stdout.append(f"\n[Ubuntu updates]\n{ubuntu_result.stdout or ''}")
+                post_stderr.append(f"\n[Ubuntu updates]\n{ubuntu_result.stderr or ''}")
+                if ubuntu_result.returncode != 0:
+                    result = subprocess.CompletedProcess(
+                        args=result.args,
+                        returncode=ubuntu_result.returncode,
+                        stdout=(result.stdout or "") + "".join(post_stdout),
+                        stderr=(result.stderr or "") + "".join(post_stderr),
+                    )
+
             finished_at = datetime.now(UTC).isoformat()
             status_payload = {
                 "state": "success" if result.returncode == 0 else "failed",
                 "package_name": package_name,
+                "channel": channel,
                 "started_at": started_at,
                 "finished_at": finished_at,
                 "return_code": result.returncode,
@@ -354,6 +568,7 @@ def apply_update_package(
         status_payload = {
             "state": "failed",
             "package_name": package_name,
+            "channel": channel,
             "started_at": started_at,
             "finished_at": finished_at,
             "return_code": -1,
@@ -367,6 +582,7 @@ def apply_update_package(
         status_payload = {
             "state": "failed",
             "package_name": package_name,
+            "channel": channel,
             "started_at": started_at,
             "finished_at": finished_at,
             "return_code": -1,

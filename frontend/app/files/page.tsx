@@ -116,6 +116,16 @@ function isPreviewSupported(file: FileRow): boolean {
   return isImageFile(file) || isVideoFile(file) || isAudioFile(file) || isPdfFile(file) || isTextLikeFile(file) || isOfficeFile(file);
 }
 
+function getFileKind(file: FileRow): "image" | "video" | "audio" | "pdf" | "office" | "text" | "other" {
+  if (isImageFile(file)) return "image";
+  if (isVideoFile(file)) return "video";
+  if (isAudioFile(file)) return "audio";
+  if (isPdfFile(file)) return "pdf";
+  if (isOfficeFile(file)) return "office";
+  if (isTextLikeFile(file)) return "text";
+  return "other";
+}
+
 export default function FilesPage() {
   const [files, setFiles] = useState<FileRow[]>([]);
   const [folders, setFolders] = useState<FolderRow[]>([]);
@@ -131,6 +141,9 @@ export default function FilesPage() {
   const [openActionFileId, setOpenActionFileId] = useState<string | null>(null);
   const [userNotice, setUserNotice] = useState("");
   const [userError, setUserError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "image" | "video" | "audio" | "pdf" | "office" | "text">("all");
+  const [sortBy, setSortBy] = useState<"date_desc" | "name_asc" | "size_desc">("date_desc");
 
   async function loadFiles() {
     try {
@@ -166,12 +179,50 @@ export default function FilesPage() {
     };
   }, [previewUrl]);
 
+  useEffect(() => {
+    function handleGlobalClick(event: MouseEvent) {
+      if (!openActionFileId) return;
+      const target = event.target as Element | null;
+      if (target?.closest("[data-file-actions='true']")) return;
+      setOpenActionFileId(null);
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      if (previewFile) {
+        closePreview();
+      } else if (openActionFileId) {
+        setOpenActionFileId(null);
+      }
+    }
+
+    window.addEventListener("mousedown", handleGlobalClick);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("mousedown", handleGlobalClick);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [openActionFileId, previewFile, previewUrl]);
+
   const currentFolder = folders.find((f) => f.id === currentFolderId);
   const currentPath = currentFolder?.path || "/";
   const breadcrumbs = currentPath.split("/").filter(Boolean);
 
   const visibleFolders = folders.filter((f) => f.parent_id === currentFolderId);
   const visibleFiles = files.filter((f) => f.folder_id === currentFolderId);
+  const folderStorageBytes = visibleFiles.reduce((sum, file) => sum + file.size_bytes, 0);
+
+  const filteredFiles = visibleFiles
+    .filter((file) => {
+      const matchesSearch = file.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesType = typeFilter === "all" ? true : getFileKind(file) === typeFilter;
+      return matchesSearch && matchesType;
+    })
+    .sort((a, b) => {
+      if (sortBy === "name_asc") return a.name.localeCompare(b.name);
+      if (sortBy === "size_desc") return b.size_bytes - a.size_bytes;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
   async function createFolder(e: React.FormEvent) {
     e.preventDefault();
@@ -330,6 +381,20 @@ export default function FilesPage() {
   return (
     <LayoutShell>
       <div className="space-y-4">
+        <section className="glass sticky top-3 z-20 rounded-2xl p-4 backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-xl font-semibold">Bestandsbeheer</h1>
+              <p className="text-xs opacity-70">Overzicht, zoeken en acties op één plek.</p>
+            </div>
+            <div className="flex gap-2 text-xs">
+              <div className="rounded-lg border border-border bg-card/30 px-3 py-2">Mappen: {visibleFolders.length}</div>
+              <div className="rounded-lg border border-border bg-card/30 px-3 py-2">Bestanden: {visibleFiles.length}</div>
+              <div className="rounded-lg border border-border bg-card/30 px-3 py-2">Grootte: {formatBytes(folderStorageBytes)}</div>
+            </div>
+          </div>
+        </section>
+
         <UploadDropzone onUploaded={loadFiles} folderId={currentFolderId} />
 
         {userNotice && (
@@ -379,6 +444,39 @@ export default function FilesPage() {
           <button className="rounded-xl bg-accent/80 px-4 py-2 text-white">Create Folder</button>
         </form>
 
+        <section className="glass sticky top-[92px] z-10 rounded-2xl p-4 backdrop-blur">
+          <div className="grid gap-3 md:grid-cols-3">
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Zoek op bestandsnaam..."
+              className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
+            />
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
+              className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="all">Alle types</option>
+              <option value="image">Afbeeldingen</option>
+              <option value="video">Video</option>
+              <option value="audio">Audio</option>
+              <option value="pdf">PDF</option>
+              <option value="office">Office</option>
+              <option value="text">Tekst/Code</option>
+            </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+              className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="date_desc">Sorteer: Nieuwste eerst</option>
+              <option value="name_asc">Sorteer: Naam A-Z</option>
+              <option value="size_desc">Sorteer: Grootste eerst</option>
+            </select>
+          </div>
+        </section>
+
         <section className="glass rounded-2xl p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-semibold">
@@ -415,7 +513,7 @@ export default function FilesPage() {
             ))}
 
             {/* Files */}
-            {visibleFiles.map((file) => (
+            {filteredFiles.map((file) => (
               <div
                 key={file.id}
                 className="relative flex items-center justify-between rounded-xl border border-border p-3 text-sm cursor-pointer transition hover:bg-accent/5"
@@ -434,10 +532,10 @@ export default function FilesPage() {
                   </div>
                   <div className="flex-1">
                     <p className="font-medium">{file.name}</p>
-                    <p className="text-xs opacity-70">{formatBytes(file.size_bytes)} • {file.mime_type}</p>
+                    <p className="text-xs opacity-70">{formatBytes(file.size_bytes)} • {file.mime_type || "onbekend"}</p>
                   </div>
                 </div>
-                <div className="relative">
+                <div className="relative" data-file-actions="true">
                   <button
                     className="rounded-lg border border-border px-3 py-1 text-lg leading-none transition hover:bg-accent/10"
                     onClick={(e) => {
@@ -499,6 +597,12 @@ export default function FilesPage() {
             {visibleFolders.length === 0 && visibleFiles.length === 0 && (
               <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm opacity-60">
                 This folder is empty
+              </p>
+            )}
+
+            {(visibleFolders.length > 0 || visibleFiles.length > 0) && filteredFiles.length === 0 && (
+              <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm opacity-60">
+                Geen bestanden gevonden voor deze zoek/filter combinatie.
               </p>
             )}
           </div>

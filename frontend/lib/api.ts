@@ -41,7 +41,9 @@ function csrfToken() {
   return match ? decodeURIComponent(match[1]) : "";
 }
 
-async function refreshAccessToken(): Promise<boolean> {
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function doRefreshAccessToken(): Promise<boolean> {
   try {
     const refresh_token = localStorage.getItem("refresh_token");
     if (!refresh_token) return false;
@@ -72,6 +74,15 @@ async function refreshAccessToken(): Promise<boolean> {
     localStorage.removeItem("refresh_token");
     return false;
   }
+}
+
+async function refreshAccessToken(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = doRefreshAccessToken().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
 }
 
 export async function apiRaw(path: string, options?: RequestInit): Promise<Response> {

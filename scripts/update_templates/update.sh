@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CHANNEL="${THOKAN_UPDATE_CHANNEL:-stable}"
+DRY_RUN="${THOKAN_DRY_RUN:-0}"
+TARGET_ROOT="/opt/thokan-cloud"
+PAYLOAD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/payload"
+
+echo "[ThoKan update] channel=${CHANNEL} dry_run=${DRY_RUN}"
+
+echo "[ThoKan update] Expected package structure:"
+echo "  update.sh"
+echo "  payload/  (files/folders that must be copied into ${TARGET_ROOT})"
+
+if [[ ! -d "${PAYLOAD_DIR}" ]]; then
+  echo "[ThoKan update] ERROR: payload directory not found at ${PAYLOAD_DIR}" >&2
+  exit 1
+fi
+
+if [[ "${DRY_RUN}" == "1" ]]; then
+  echo "[ThoKan update] DRY RUN: would sync payload to ${TARGET_ROOT}"
+  echo "rsync -a --delete ${PAYLOAD_DIR}/ ${TARGET_ROOT}/"
+  exit 0
+fi
+
+if [[ ! -d "${TARGET_ROOT}" ]]; then
+  echo "[ThoKan update] ERROR: target root does not exist: ${TARGET_ROOT}" >&2
+  exit 1
+fi
+
+echo "[ThoKan update] Syncing payload to ${TARGET_ROOT}..."
+rsync -a --delete "${PAYLOAD_DIR}/" "${TARGET_ROOT}/"
+
+echo "[ThoKan update] Package payload applied successfully."
+echo "[ThoKan update] Docker rebuild + Ubuntu update are handled by server automation settings."

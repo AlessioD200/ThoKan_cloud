@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LayoutShell } from "@/components/layout-shell";
 import { api } from "@/lib/api";
 
@@ -91,6 +91,10 @@ function formatBytes(bytes: number): string {
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [orders, setOrders] = useState<ShopifyOrder[]>([]);
+  const [ordersSearch, setOrdersSearch] = useState("");
+  const [ordersSort, setOrdersSort] = useState<"newest" | "oldest" | "amount">("newest");
+  const [ordersStatusFilter, setOrdersStatusFilter] = useState("all");
+  const [activityFilter, setActivityFilter] = useState("all");
   const [ordersError, setOrdersError] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<ShopifyOrderDetail | null>(null);
   const [orderDetailLoading, setOrderDetailLoading] = useState(false);
@@ -193,10 +197,41 @@ export default function DashboardPage() {
   const hasGelatoOrder = Boolean(gelatoStatus?.found);
   const sendToGelatoDisabled = orderDetailLoading || sendGelatoBusy || !selectedOrder || hasGelatoOrder;
 
+  const activityTypes = useMemo(() => {
+    const set = new Set((data?.recent_activity || []).map((entry) => entry.event_type).filter(Boolean));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [data?.recent_activity]);
+
+  const filteredOrders = useMemo(() => {
+    const query = ordersSearch.trim().toLowerCase();
+    const rows = orders.filter((order) => {
+      if (ordersStatusFilter !== "all") {
+        const fulfillment = (order.fulfillment_status || "unfulfilled").toLowerCase();
+        if (fulfillment !== ordersStatusFilter.toLowerCase()) return false;
+      }
+      if (!query) return true;
+      return [order.name, order.customer_name, order.email, order.financial_status, order.fulfillment_status]
+        .some((part) => (part || "").toLowerCase().includes(query));
+    });
+
+    return [...rows].sort((a, b) => {
+      if (ordersSort === "amount") return Number(b.total_price || 0) - Number(a.total_price || 0);
+      const aTime = new Date(a.created_at || 0).getTime();
+      const bTime = new Date(b.created_at || 0).getTime();
+      return ordersSort === "oldest" ? aTime - bTime : bTime - aTime;
+    });
+  }, [orders, ordersSearch, ordersSort, ordersStatusFilter]);
+
+  const filteredActivity = useMemo(() => {
+    const rows = data?.recent_activity || [];
+    if (activityFilter === "all") return rows;
+    return rows.filter((entry) => entry.event_type === activityFilter);
+  }, [data?.recent_activity, activityFilter]);
+
   return (
     <LayoutShell>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="glass sticky top-3 z-20 flex items-center justify-between rounded-2xl p-4 backdrop-blur">
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <button
             onClick={loadData}
@@ -277,9 +312,24 @@ export default function DashboardPage() {
 
           <section className="glass rounded-2xl p-5">
             <h3 className="font-medium">Activity Logs</h3>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <label className="text-xs opacity-60">Filter</label>
+              <select
+                value={activityFilter}
+                onChange={(e) => setActivityFilter(e.target.value)}
+                className="rounded-lg border border-border bg-transparent px-2 py-1 text-xs"
+              >
+                <option value="all">All activity</option>
+                {activityTypes.map((activity) => (
+                  <option key={activity} value={activity}>
+                    {activity}
+                  </option>
+                ))}
+              </select>
+            </div>
             <ul className="mt-3 space-y-2">
-              {data?.recent_activity && data.recent_activity.length > 0 ? (
-                data.recent_activity.map((entry, index) => (
+              {filteredActivity.length > 0 ? (
+                filteredActivity.map((entry, index) => (
                   <li key={`${entry.event_type}-${index}`} className="rounded-xl border border-border p-3">
                     <span className="text-sm font-medium">{entry.event_type}</span>
                     <p className="mt-1 text-xs opacity-60">{new Date(entry.created_at).toLocaleString()}</p>
@@ -300,10 +350,38 @@ export default function DashboardPage() {
             <span className="text-xs opacity-60">Latest 10</span>
           </div>
 
+          <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto_auto]">
+            <input
+              value={ordersSearch}
+              onChange={(e) => setOrdersSearch(e.target.value)}
+              placeholder="Search order, customer, email"
+              className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
+            />
+            <select
+              value={ordersSort}
+              onChange={(e) => setOrdersSort(e.target.value as "newest" | "oldest" | "amount")}
+              className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="amount">Highest amount</option>
+            </select>
+            <select
+              value={ordersStatusFilter}
+              onChange={(e) => setOrdersStatusFilter(e.target.value)}
+              className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="all">All fulfillment</option>
+              <option value="unfulfilled">Unfulfilled</option>
+              <option value="fulfilled">Fulfilled</option>
+              <option value="partial">Partial</option>
+            </select>
+          </div>
+
           {ordersError && <p className="mt-3 text-sm text-red-400">{ordersError}</p>}
 
           <div className="mt-3 overflow-x-auto">
-            {orders.length > 0 ? (
+            {filteredOrders.length > 0 ? (
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left opacity-70">
@@ -316,7 +394,7 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map((order) => (
+                  {filteredOrders.map((order) => (
                     <tr
                       key={order.id}
                       className="cursor-pointer border-b border-border/50 hover:bg-card/20"
