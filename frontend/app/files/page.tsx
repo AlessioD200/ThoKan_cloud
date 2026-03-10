@@ -306,13 +306,18 @@ export default function FilesPage() {
 
             {/* Files */}
             {visibleFiles.map((file) => (
-              <div key={file.id} className="flex items-center justify-between rounded-xl border border-border p-3 text-sm">
+              <div
+                key={file.id}
+                className="flex items-center justify-between rounded-xl border border-border p-3 text-sm cursor-pointer transition hover:bg-accent/5"
+                onDoubleClick={() => void openPreview(file)}
+              >
                 <div className="flex flex-1 items-center gap-3">
                   <div className="text-2xl">
                     {file.mime_type?.startsWith("image/") ? "🖼️" : 
                      file.mime_type?.startsWith("video/") ? "🎥" :
                      file.mime_type?.startsWith("audio/") ? "🎵" :
-                     file.mime_type?.includes("pdf") ? "📄" : "📎"}
+                     file.mime_type?.includes("pdf") ? "📄" : 
+                     isTextLikeFile(file) ? "📝" : "📎"}
                   </div>
                   <div className="flex-1">
                     <p className="font-medium">{file.name}</p>
@@ -323,26 +328,39 @@ export default function FilesPage() {
                   {isPreviewSupported(file) && (
                     <button
                       className="rounded-lg border border-border px-3 py-1 transition hover:bg-accent/10"
-                      onClick={() => void openPreview(file)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void openPreview(file);
+                      }}
+                      title="Or double-click to open"
                     >
                       Preview
                     </button>
                   )}
                   <button
                     className="rounded-lg border border-border px-3 py-1 transition hover:bg-accent/10"
-                    onClick={() => downloadFile(file)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadFile(file);
+                    }}
                   >
                     Download
                   </button>
                   <button
                     className="rounded-lg border border-border px-3 py-1 transition hover:bg-accent/10"
-                    onClick={() => renameFile(file.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      renameFile(file.id);
+                    }}
                   >
                     Rename
                   </button>
                   <button
                     className="rounded-lg border border-border px-3 py-1 transition hover:bg-red-500/20"
-                    onClick={() => deleteFile(file.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteFile(file.id);
+                    }}
                   >
                     Delete
                   </button>
@@ -420,9 +438,16 @@ export default function FilesPage() {
                 )}
 
                 {!previewLoading && !previewError && previewText && isTextLikeFile(previewFile) && (
-                  <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap rounded-lg bg-card p-3 text-xs">
-                    {previewText}
-                  </pre>
+                  <div className="max-h-[70vh] overflow-auto rounded-lg bg-card">
+                    <pre className="whitespace-pre-wrap font-mono text-xs p-4 leading-relaxed">
+                      {previewText}
+                    </pre>
+                    {previewText.length === 200000 && (
+                      <p className="text-xs opacity-60 p-2 border-t border-border">
+                        File is too large. Showing first 200KB. <button onClick={() => downloadFile(previewFile)} className="underline hover:opacity-100">Download full file</button>
+                      </p>
+                    )}
+                  </div>
                 )}
 
                 {!previewLoading && !previewError && !previewText && previewUrl && !previewFile.mime_type?.startsWith("image/") && !previewFile.mime_type?.startsWith("video/") && !previewFile.mime_type?.startsWith("audio/") && !previewFile.mime_type?.includes("pdf") && (

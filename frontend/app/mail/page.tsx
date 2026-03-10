@@ -15,6 +15,7 @@ type MailConfig = {
   smtp_use_tls: boolean;
   smtp_use_ssl: boolean;
   has_password: boolean;
+  email_signature: string;
 };
 
 type MailMessage = {
@@ -44,10 +45,14 @@ export default function MailPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showCompose, setShowCompose] = useState(false);
+  const [showReply, setShowReply] = useState(false);
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [status, setStatus] = useState<string>("");
+  const [emailSignature, setEmailSignature] = useState("");
+  const [totalMessages, setTotalMessages] = useState(0);
+  const [inboxPage, setInboxPage] = useState(0);
 
   useEffect(() => {
     api<MailConfig>("/mail/config")
@@ -59,6 +64,7 @@ export default function MailPage() {
   useEffect(() => {
     if (config && config.has_password && messages.length === 0) {
       loadInbox();
+      setEmailSignature(config.email_signature || "");
     }
   }, [config]);
 
@@ -80,12 +86,14 @@ export default function MailPage() {
         body: JSON.stringify({
           ...config,
           password,
+          email_signature: emailSignature,
         }),
       });
       setPassword("");
       setStatus("Mailbox config saved");
       const fresh = await api<MailConfig>("/mail/config");
       setConfig(fresh);
+      setEmailSignature(fresh.email_signature || "");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Save failed");
     }
@@ -104,8 +112,9 @@ export default function MailPage() {
   async function loadInbox() {
     setStatus("");
     try {
-      const response = await api<{ messages: MailMessage[] }>("/mail/inbox?limit=20");
+      const response = await api<{ messages: MailMessage[]; total: number; limit: number; skip: number }>(`/mail/inbox?limit=50&skip=${inboxPage * 50}`);
       setMessages(response.messages || []);
+      setTotalMessages(response.total || 0);
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Inbox load failed");
     }
@@ -178,9 +187,29 @@ export default function MailPage() {
       setTo("");
       setSubject("");
       setBody("");
-      await loadInbox();
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Send failed");
+    }
+  }
+
+  async function replyMail() {
+    if (!selectedMessage) return;
+    setStatus("");
+    try {
+      const response = await api<{ message: string }>("/mail/reply", {
+        method: "POST",
+        body: JSON.stringify({
+          reply_to: selectedMessage.from,
+          subject: selectedMessage.subject,
+          body,
+        }),
+      });
+      setStatus(response.message);
+      setBody("");
+      setShowReply(false);
+      await loadInbox();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Reply failed");
     }
   }
 
@@ -336,6 +365,17 @@ export default function MailPage() {
                 Test Connection
               </button>
             </div>
+
+            <div className="mt-6 border-t border-border pt-6">
+              <h4 className="text-sm font-semibold mb-3">Email Signature (auto-appended to messages)</h4>
+              <textarea
+                className="h-32 w-full rounded-xl border border-border bg-transparent px-3 py-2 font-mono text-xs"
+                placeholder="Enter your email signature&#10;Example:&#10;Best regards,&#10;Thomas&#10;BTW-nummer: BE123456789&#10;Tel: +32 123 45 67 89"
+                value={emailSignature}
+                onChange={(e) => setEmailSignature(e.target.value)}
+              />
+              <p className="mt-1 text-xs opacity-60">Will be added to every email you send</p>
+            </div>
           </section>
         )}
 
@@ -391,7 +431,32 @@ export default function MailPage() {
 
         {/* Inbox */}
         <section className="glass rounded-2xl p-5">
-          <h3 className="mb-4 font-medium">Inbox ({messages.length})</h3>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="font-medium">Inbox ({messages.length}/{totalMessages})</h3>
+            <div className="flex gap-2 text-xs">
+              <button
+                onClick={() => {
+                  setInboxPage(Math.max(0, inboxPage - 1));
+                  loadInbox();
+                }}
+                disabled={inboxPage === 0}
+                className="rounded-lg border border-border px-3 py-1 disabled:opacity-50"
+              >
+                ← Prev
+              </button>
+              <span className="px-2 py-1">Page {inboxPage + 1}</span>
+              <button
+                onClick={() => {
+                  setInboxPage(inboxPage + 1);
+                  loadInbox();
+                }}
+                disabled={messages.length < 50}
+                className="rounded-lg border border-border px-3 py-1 disabled:opacity-50"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
           <ul className="max-h-[600px] space-y-2 overflow-y-auto">
             {messages.map((msg) => (
               <li
@@ -446,6 +511,12 @@ export default function MailPage() {
                 </div>
                 <div className="flex gap-2">
                   <button
+                    className="rounded-xl border border-border bg-card px-4 py-2 text-sm transition hover:bg-accent/20"
+                    onClick={() => setShowReply(!showReply)}
+                  >
+                    Reply
+                  </button>
+                  <button
                     className="rounded-xl border border-border bg-card px-4 py-2 text-sm transition hover:bg-red-500/20"
                     onClick={() => deleteMessage(selectedMessage.id)}
                   >
@@ -474,6 +545,36 @@ export default function MailPage() {
                   <p className="p-4 text-sm opacity-60">No content</p>
                 )}
               </div>
+
+              {/* Reply Form */}
+              {showReply && (
+                <div className="mt-6 border-t border-border pt-6">
+                  <h4 className="mb-3 font-medium">Reply to {selectedMessage.from}</h4>
+                  <textarea
+                    className="h-40 w-full rounded-xl border border-border bg-transparent px-3 py-2"
+                    placeholder="Type your reply..."
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                  />
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      className="rounded-xl bg-accent/80 px-6 py-2 text-white transition hover:bg-accent"
+                      onClick={replyMail}
+                    >
+                      Send Reply
+                    </button>
+                    <button
+                      className="rounded-xl border border-border px-4 py-2 transition hover:bg-card/70"
+                      onClick={() => {
+                        setShowReply(false);
+                        setBody("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

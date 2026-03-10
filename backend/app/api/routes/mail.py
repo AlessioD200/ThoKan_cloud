@@ -161,6 +161,11 @@ def _smtp_send(config: dict, to_email: str, subject: str, body: str) -> None:
     if not smtp_host:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SMTP host not configured")
 
+    # Append signature if configured
+    signature = config.get("email_signature", "").strip()
+    if signature:
+        body = f"{body}\n\n{signature}"
+
     msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"] = from_email
@@ -190,6 +195,7 @@ def get_mail_config(current_user: User = Depends(get_current_user), db: Session 
             "smtp_use_tls": True,
             "smtp_use_ssl": False,
             "has_password": False,
+            "email_signature": "",
         }
 
     return {
@@ -203,6 +209,7 @@ def get_mail_config(current_user: User = Depends(get_current_user), db: Session 
         "smtp_use_tls": raw.get("smtp_use_tls", True),
         "smtp_use_ssl": raw.get("smtp_use_ssl", False),
         "has_password": bool(raw.get("password_enc")),
+        "email_signature": raw.get("email_signature", ""),
     }
 
 
@@ -211,8 +218,7 @@ def save_mail_config(payload: dict, current_user: User = Depends(get_current_use
     email_address = payload.get("email") or current_user.email
     username = payload.get("username") or email_address
     imap_host = payload.get("imap_host")
-    smtp_host = payload.get("smtp_host")
-    password = payload.get("password", "")
+    email_signature = payload.get("email_signature", "")
 
     if not imap_host:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="imap_host is required")
@@ -237,6 +243,7 @@ def save_mail_config(payload: dict, current_user: User = Depends(get_current_use
         "smtp_use_ssl": bool(payload.get("smtp_use_ssl", False)),
         "password_enc": encoded_password,
         "password_iv": password_iv,
+        "email_signature": email_signature,
     }
     _save_config(db, str(current_user.id), data)
     return {"message": "Mailbox configuration saved"}
@@ -258,11 +265,14 @@ def test_mail_config(current_user: User = Depends(get_current_user), db: Session
 
 
 @router.get("/inbox")
-def get_inbox(limit: int = 20, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_inbox(limit: int = 50, skip: int = 0, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     raw = _get_raw_config(db, str(current_user.id))
     if not raw:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mailbox config not found")
 
+    # Enforce max limit of 100
+    limit = min(max(1, limit), 100)
+    
     try:
         client = _imap_client(raw)
         client.select("INBOX")
@@ -271,7 +281,11 @@ def get_inbox(limit: int = 20, current_user: User = Depends(get_current_user), d
             raise RuntimeError("Unable to fetch messages")
 
         ids = data[0].split()
-        selected_ids = ids[-max(1, min(limit, 100)) :]
+        total_count = len(ids)
+        
+        # Apply pagination: skip from start, then take limit
+        selected_ids = ids[-(skip + limit):-skip] if skip > 0 else ids[-limit:]
+        
         messages = []
         for message_id in reversed(selected_ids):
             fetch_status, message_data = client.fetch(message_id, "(RFC822)")
@@ -289,7 +303,7 @@ def get_inbox(limit: int = 20, current_user: User = Depends(get_current_user), d
                 }
             )
         client.logout()
-        return {"messages": messages}
+        return {"messages": messages, "total": total_count, "limit": limit, "skip": skip}
     except HTTPException:
         raise
     except Exception as exc:
@@ -463,3 +477,30 @@ def send_mail(payload: dict, current_user: User = Depends(get_current_user), db:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Send failed: {exc}") from exc
 
     return {"message": "Email sent"}
+
+
+@router.post("/reply")
+def reply_mail(payload: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Reply to an email message."""
+    raw = _get_raw_config(db, str(current_user.id))
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mailbox config not found")
+
+    original_from = payload.get("reply_to")
+    original_subject = payload.get("subject", "")
+    reply_body = payload.get("body", "")
+    
+    if not original_from:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reply-to address is required")
+
+    # Auto-prepend "Re:" if not already there
+    reply_subject = original_subject if original_subject.lower().startswith("re:") else f"Re: {original_subject}"
+
+    try:
+        _smtp_send(raw, to_email=original_from, subject=reply_subject, body=reply_body)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Reply failed: {exc}") from exc
+
+    return {"message": "Reply sent"}
