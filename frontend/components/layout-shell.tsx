@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 import { LayoutGrid, Folder, Mail, Shield, Settings } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ensureSession } from "@/lib/api";
 
 const items = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
@@ -22,12 +23,23 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-    if (!token) {
-      router.replace("/login");
-      return;
+    let cancelled = false;
+
+    async function checkAuth() {
+      const authenticated = await ensureSession();
+      if (cancelled) return;
+      if (!authenticated) {
+        router.replace("/login");
+        return;
+      }
+      setAuthChecked(true);
     }
-    setAuthChecked(true);
+
+    void checkAuth();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   function handleLogout() {

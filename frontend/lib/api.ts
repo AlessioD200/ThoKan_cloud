@@ -260,3 +260,27 @@ export async function uploadFile(file: File, folderId?: string) {
 
   return response.json();
 }
+
+export async function ensureSession(): Promise<boolean> {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const accessToken = localStorage.getItem("access_token");
+  const refreshToken = localStorage.getItem("refresh_token");
+  if (!accessToken && !refreshToken) {
+    return false;
+  }
+
+  try {
+    await apiRaw("/auth/me", { method: "GET" });
+    return true;
+  } catch {
+    if (typeof window !== "undefined" && (accessToken || refreshToken)) {
+      sessionStorage.setItem("auth_notice", "Sessie verlopen. Log opnieuw in om verder te gaan.");
+    }
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    return false;
+  }
+}

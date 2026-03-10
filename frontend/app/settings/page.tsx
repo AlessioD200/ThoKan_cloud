@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { LayoutShell } from "@/components/layout-shell";
-import { api } from "@/lib/api";
+import { api, apiRaw } from "@/lib/api";
 
 type StorageInfo = {
   current_path: string;
@@ -121,16 +121,6 @@ export default function SettingsPage() {
     }
   }
 
-  function getAuthHeaders() {
-    const token = localStorage.getItem("access_token");
-    const csrfMatch = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
-    const csrfToken = csrfMatch ? decodeURIComponent(csrfMatch[1]) : "";
-    const headers = new Headers();
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-    if (csrfToken) headers.set("x-csrf-token", csrfToken);
-    return headers;
-  }
-
   async function uploadUpdatePackage() {
     if (!updateFile) return;
     setUpdateBusy(true);
@@ -138,17 +128,11 @@ export default function SettingsPage() {
     try {
       const formData = new FormData();
       formData.append("upload", updateFile);
-      const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
-      const response = await fetch(`${base}/system/update/upload`, {
+      const response = await apiRaw("/system/update/upload", {
         method: "POST",
-        headers: getAuthHeaders(),
         body: formData,
-        credentials: "include",
       });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.detail || "Update package upload failed");
-      }
+
       setStatus("Update package uploaded");
       setUpdateFile(null);
       await loadUpdateData();

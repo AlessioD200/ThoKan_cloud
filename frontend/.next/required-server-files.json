@@ -97,7 +97,7 @@
         "transform": "lodash/{{member}}"
       }
     },
-    "outputFileTracingRoot": "/Users/alessio/Documents/GitHub/ThoKan_cloud/frontend",
+    "outputFileTracingRoot": "/Users/alessiodepreytere/Documents/GitHub/ThoKan_cloud/frontend",
     "experimental": {
       "nodeMiddleware": false,
       "cacheLife": {
@@ -154,7 +154,7 @@
       "middlewarePrefetch": "flexible",
       "optimisticClientCache": true,
       "manualClientBasePath": false,
-      "cpus": 9,
+      "cpus": 7,
       "memoryBasedWorkersCount": false,
       "imgOptConcurrency": null,
       "imgOptTimeoutInSeconds": 7,
@@ -175,7 +175,7 @@
       "forceSwcTransforms": false,
       "largePageDataBytes": 128000,
       "turbo": {
-        "root": "/Users/alessio/Documents/GitHub/ThoKan_cloud/frontend"
+        "root": "/Users/alessiodepreytere/Documents/GitHub/ThoKan_cloud/frontend"
       },
       "typedRoutes": false,
       "typedEnv": false,
@@ -281,7 +281,7 @@
     "bundlePagesRouterDependencies": false,
     "configFileName": "next.config.ts"
   },
-  "appDir": "/Users/alessio/Documents/GitHub/ThoKan_cloud/frontend",
+  "appDir": "/Users/alessiodepreytere/Documents/GitHub/ThoKan_cloud/frontend",
   "relativeAppDir": "",
   "files": [
     ".next/routes-manifest.json",

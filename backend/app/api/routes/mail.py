@@ -23,13 +23,23 @@ router = APIRouter()
 
 _APP_BASE_URL = (settings.app_url or "http://localhost:3000").rstrip("/")
 _DEFAULT_LOGO_URL = f"{_APP_BASE_URL}/Logo_tekst_CV.png"
+_DEFAULT_LOGO_WHITE_URL = f"{_APP_BASE_URL}/Logo_tekst_CV_white.png"
 
 
 DEFAULT_EMAIL_SIGNATURE_HTML = (
+    '<style>'
+    '.thokan-logo-dark{display:none !important;}'
+    '@media (prefers-color-scheme: dark){'
+    '.thokan-logo-light{display:none !important;}'
+    '.thokan-logo-dark{display:block !important;}'
+    '}'
+    '</style>'
     '<div style="margin-top:16px;border-top:1px solid #d1d5db;padding-top:12px;'
-    'font-family:Arial,sans-serif;font-size:13px;color:#111827;line-height:1.5;">'
-    f'<div style="margin-bottom:10px;"><img src="{_DEFAULT_LOGO_URL}" alt="ThoKan" '
-    'style="max-height:44px;width:auto;"></div>'
+    'font-family:Arial,sans-serif;font-size:13px;color:#111827;line-height:1.5;text-align:center;">'
+    f'<img class="thokan-logo-light" src="{_DEFAULT_LOGO_URL}" alt="ThoKan" '
+    'style="display:block;margin:0 auto 10px auto;max-height:44px;width:auto;">'
+    f'<img class="thokan-logo-dark" src="{_DEFAULT_LOGO_WHITE_URL}" alt="ThoKan" '
+    'style="display:none;margin:0 auto 10px auto;max-height:44px;width:auto;">'
     '<div style="font-size:16px;font-weight:700;letter-spacing:0.3px;">ThoKan</div>'
     '<div style="color:#374151;">BTW-nummer: 1034.077.111</div>'
     '<div style="color:#374151;">Tel: 0475 50 67 03</div>'

@@ -2,18 +2,25 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { ensureSession } from "@/lib/api";
 
 export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if user is already logged in
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      router.replace("/dashboard");
-    } else {
-      router.replace("/login");
+    let cancelled = false;
+
+    async function routeBySession() {
+      const authenticated = await ensureSession();
+      if (cancelled) return;
+      router.replace(authenticated ? "/dashboard" : "/login");
     }
+
+    void routeBySession();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   return (

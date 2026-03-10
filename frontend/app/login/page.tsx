@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
@@ -10,6 +11,14 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const notice = sessionStorage.getItem("auth_notice");
+    if (notice) {
+      setError(notice);
+      sessionStorage.removeItem("auth_notice");
+    }
+  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -24,6 +33,7 @@ export default function LoginPage() {
 
       localStorage.setItem("access_token", response.access_token);
       localStorage.setItem("refresh_token", response.refresh_token);
+      sessionStorage.removeItem("auth_notice");
       
       router.push("/dashboard");
     } catch (err) {
