@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { LayoutShell } from "@/components/layout-shell";
 import { api } from "@/lib/api";
 
+const DEFAULT_EMAIL_SIGNATURE = `<div style="margin-top:16px;border-top:1px solid #d1d5db;padding-top:12px;font-family:Arial,sans-serif;font-size:13px;color:#111827;line-height:1.5;"><div style="font-size:16px;font-weight:700;letter-spacing:0.3px;">ThoKan Cloud</div><div style="color:#374151;">BTW-nummer: 1034.077.111</div><div style="color:#374151;">Tel: 0475 50 67 03</div></div>`;
+
 type MailConfig = {
   email: string;
   username: string;
@@ -29,9 +31,13 @@ type MailMessage = {
 type MailDetail = {
   id: string;
   from: string;
+  reply_to: string;
   to: string;
   subject: string;
   date: string;
+  message_id: string;
+  in_reply_to: string;
+  references: string;
   text_body: string;
   html_body: string;
 };
@@ -60,13 +66,19 @@ export default function MailPage() {
       .catch((err) => setStatus(err.message || "Failed to load mail config"));
   }, []);
 
-  // Auto-load inbox when config is ready
+  // Load signature from config or use sensible default
   useEffect(() => {
-    if (config && config.has_password && messages.length === 0) {
-      loadInbox();
-      setEmailSignature(config.email_signature || "");
+    if (config) {
+      setEmailSignature(config.email_signature || DEFAULT_EMAIL_SIGNATURE);
     }
   }, [config]);
+
+  // Reload inbox when page changes or mailbox config becomes available
+  useEffect(() => {
+    if (config?.has_password) {
+      loadInbox();
+    }
+  }, [config?.has_password, inboxPage]);
 
   // Cleanup blob URL on unmount or when closing modal
   useEffect(() => {
@@ -93,7 +105,7 @@ export default function MailPage() {
       setStatus("Mailbox config saved");
       const fresh = await api<MailConfig>("/mail/config");
       setConfig(fresh);
-      setEmailSignature(fresh.email_signature || "");
+      setEmailSignature(fresh.email_signature || DEFAULT_EMAIL_SIGNATURE);
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Save failed");
     }
@@ -162,6 +174,8 @@ export default function MailPage() {
       }
       
       setSelectedMessage(detail);
+      setShowReply(false);
+      setBody("");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Failed to load message");
     }
@@ -174,6 +188,8 @@ export default function MailPage() {
       setEmailHtmlUrl(null);
     }
     setSelectedMessage(null);
+    setShowReply(false);
+    setBody("");
   }
 
   async function sendMail() {
@@ -199,8 +215,12 @@ export default function MailPage() {
       const response = await api<{ message: string }>("/mail/reply", {
         method: "POST",
         body: JSON.stringify({
-          reply_to: selectedMessage.from,
+          reply_to: selectedMessage.reply_to || selectedMessage.from,
+          from: selectedMessage.from,
           subject: selectedMessage.subject,
+          message_id: selectedMessage.message_id,
+          in_reply_to: selectedMessage.in_reply_to,
+          references: selectedMessage.references,
           body,
         }),
       });
@@ -369,12 +389,12 @@ export default function MailPage() {
             <div className="mt-6 border-t border-border pt-6">
               <h4 className="text-sm font-semibold mb-3">Email Signature (auto-appended to messages)</h4>
               <textarea
-                className="h-32 w-full rounded-xl border border-border bg-transparent px-3 py-2 font-mono text-xs"
-                placeholder="Enter your email signature&#10;Example:&#10;Best regards,&#10;Thomas&#10;BTW-nummer: BE123456789&#10;Tel: +32 123 45 67 89"
+                className="h-40 w-full rounded-xl border border-border bg-transparent px-3 py-2 font-mono text-xs"
+                placeholder="HTML of platte tekst ondersteund"
                 value={emailSignature}
                 onChange={(e) => setEmailSignature(e.target.value)}
               />
-              <p className="mt-1 text-xs opacity-60">Will be added to every email you send</p>
+              <p className="mt-1 text-xs opacity-60">Standaard bevat ThoKan branding, BTW-nummer en tel. Wordt toegevoegd aan elke verzonden mail.</p>
             </div>
           </section>
         )}
@@ -436,8 +456,7 @@ export default function MailPage() {
             <div className="flex gap-2 text-xs">
               <button
                 onClick={() => {
-                  setInboxPage(Math.max(0, inboxPage - 1));
-                  loadInbox();
+                  setInboxPage((prev) => Math.max(0, prev - 1));
                 }}
                 disabled={inboxPage === 0}
                 className="rounded-lg border border-border px-3 py-1 disabled:opacity-50"
@@ -447,8 +466,7 @@ export default function MailPage() {
               <span className="px-2 py-1">Page {inboxPage + 1}</span>
               <button
                 onClick={() => {
-                  setInboxPage(inboxPage + 1);
-                  loadInbox();
+                  setInboxPage((prev) => prev + 1);
                 }}
                 disabled={messages.length < 50}
                 className="rounded-lg border border-border px-3 py-1 disabled:opacity-50"

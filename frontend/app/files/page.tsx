@@ -21,6 +21,12 @@ type FolderRow = {
   path: string;
 };
 
+function getFileExtension(name: string): string {
+  const dotIndex = name.lastIndexOf(".");
+  if (dotIndex < 0) return "";
+  return name.slice(dotIndex).toLowerCase();
+}
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
   const k = 1024;
@@ -31,7 +37,7 @@ function formatBytes(bytes: number): string {
 
 function isTextLikeFile(file: FileRow): boolean {
   const mime = (file.mime_type || "").toLowerCase();
-  const lowerName = file.name.toLowerCase();
+  const ext = getFileExtension(file.name);
   const textExtensions = [
     ".txt",
     ".md",
@@ -59,19 +65,36 @@ function isTextLikeFile(file: FileRow): boolean {
     mime.includes("xml") ||
     mime.includes("javascript") ||
     mime.includes("csv") ||
-    textExtensions.some((ext) => lowerName.endsWith(ext))
+    textExtensions.includes(ext)
   );
 }
 
-function isPreviewSupported(file: FileRow): boolean {
+function isImageFile(file: FileRow): boolean {
   const mime = (file.mime_type || "").toLowerCase();
-  return (
-    mime.startsWith("image/") ||
-    mime.startsWith("video/") ||
-    mime.startsWith("audio/") ||
-    mime.includes("pdf") ||
-    isTextLikeFile(file)
-  );
+  const ext = getFileExtension(file.name);
+  return mime.startsWith("image/") || [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".ico"].includes(ext);
+}
+
+function isVideoFile(file: FileRow): boolean {
+  const mime = (file.mime_type || "").toLowerCase();
+  const ext = getFileExtension(file.name);
+  return mime.startsWith("video/") || [".mp4", ".webm", ".mov", ".avi", ".mkv", ".m4v"].includes(ext);
+}
+
+function isAudioFile(file: FileRow): boolean {
+  const mime = (file.mime_type || "").toLowerCase();
+  const ext = getFileExtension(file.name);
+  return mime.startsWith("audio/") || [".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac"].includes(ext);
+}
+
+function isPdfFile(file: FileRow): boolean {
+  const mime = (file.mime_type || "").toLowerCase();
+  const ext = getFileExtension(file.name);
+  return mime.includes("pdf") || ext === ".pdf";
+}
+
+function isPreviewSupported(file: FileRow): boolean {
+  return isImageFile(file) || isVideoFile(file) || isAudioFile(file) || isPdfFile(file) || isTextLikeFile(file);
 }
 
 export default function FilesPage() {
@@ -313,10 +336,10 @@ export default function FilesPage() {
               >
                 <div className="flex flex-1 items-center gap-3">
                   <div className="text-2xl">
-                    {file.mime_type?.startsWith("image/") ? "🖼️" : 
-                     file.mime_type?.startsWith("video/") ? "🎥" :
-                     file.mime_type?.startsWith("audio/") ? "🎵" :
-                     file.mime_type?.includes("pdf") ? "📄" : 
+                    {isImageFile(file) ? "🖼️" : 
+                    isVideoFile(file) ? "🎥" :
+                    isAudioFile(file) ? "🎵" :
+                    isPdfFile(file) ? "📄" : 
                      isTextLikeFile(file) ? "📝" : "📎"}
                   </div>
                   <div className="flex-1">
@@ -332,9 +355,20 @@ export default function FilesPage() {
                         e.stopPropagation();
                         void openPreview(file);
                       }}
-                      title="Or double-click to open"
                     >
-                      Preview
+                      Open
+                    </button>
+                  )}
+                  {isPreviewSupported(file) && (
+                    <button
+                      className="rounded-lg border border-border px-3 py-1 transition hover:bg-accent/10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void openPreview(file);
+                      }}
+                      title="Of dubbelklik om te openen"
+                    >
+                      Bekijk
                     </button>
                   )}
                   <button
@@ -408,28 +442,28 @@ export default function FilesPage() {
                 {previewLoading && <p className="text-sm opacity-70">Loading preview...</p>}
                 {!previewLoading && previewError && <p className="text-sm text-red-400">{previewError}</p>}
 
-                {!previewLoading && !previewError && previewUrl && previewFile.mime_type?.startsWith("image/") && (
+                {!previewLoading && !previewError && previewUrl && isImageFile(previewFile) && (
                   <img
                     src={previewUrl}
                     alt={previewFile.name}
                     className="mx-auto max-h-[70vh] w-auto rounded-lg"
                   />
                 )}
-                {!previewLoading && !previewError && previewUrl && previewFile.mime_type?.startsWith("video/") && (
+                {!previewLoading && !previewError && previewUrl && isVideoFile(previewFile) && (
                   <video
                     controls
                     className="mx-auto max-h-[70vh] w-auto rounded-lg"
                     src={previewUrl}
                   />
                 )}
-                {!previewLoading && !previewError && previewUrl && previewFile.mime_type?.startsWith("audio/") && (
+                {!previewLoading && !previewError && previewUrl && isAudioFile(previewFile) && (
                   <audio
                     controls
                     className="w-full"
                     src={previewUrl}
                   />
                 )}
-                {!previewLoading && !previewError && previewUrl && previewFile.mime_type?.includes("pdf") && (
+                {!previewLoading && !previewError && previewUrl && isPdfFile(previewFile) && (
                   <iframe
                     src={previewUrl}
                     className="h-[70vh] w-full rounded-lg"
@@ -450,7 +484,7 @@ export default function FilesPage() {
                   </div>
                 )}
 
-                {!previewLoading && !previewError && !previewText && previewUrl && !previewFile.mime_type?.startsWith("image/") && !previewFile.mime_type?.startsWith("video/") && !previewFile.mime_type?.startsWith("audio/") && !previewFile.mime_type?.includes("pdf") && (
+                {!previewLoading && !previewError && !previewText && previewUrl && !isImageFile(previewFile) && !isVideoFile(previewFile) && !isAudioFile(previewFile) && !isPdfFile(previewFile) && (
                   <div className="space-y-2">
                     <p className="text-sm opacity-70">Preview for this file type is limited.</p>
                     <button

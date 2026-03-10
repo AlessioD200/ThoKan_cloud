@@ -5,6 +5,8 @@ import imaplib
 import re
 import smtplib
 from email.header import decode_header, make_header
+from email.utils import parseaddr
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,6 +19,18 @@ from app.models import SystemSetting, User
 from app.services.encryption import decrypt_bytes, encrypt_bytes
 
 router = APIRouter()
+
+
+DEFAULT_EMAIL_SIGNATURE_HTML = (
+    '<div style="margin-top:16px;border-top:1px solid #d1d5db;padding-top:12px;'
+    'font-family:Arial,sans-serif;font-size:13px;color:#111827;line-height:1.5;">'
+    '<div style="font-size:16px;font-weight:700;letter-spacing:0.3px;">ThoKan Cloud</div>'
+    '<div style="color:#374151;">BTW-nummer: 1034.077.111</div>'
+    '<div style="color:#374151;">Tel: 0475 50 67 03</div>'
+    '</div>'
+)
+
+DEFAULT_EMAIL_SIGNATURE_TEXT = "ThoKan Cloud\nBTW-nummer: 1034.077.111\nTel: 0475 50 67 03"
 
 
 def _mail_key(user_id: str) -> str:
@@ -149,7 +163,74 @@ def _imap_client(config: dict):
     return client
 
 
-def _smtp_send(config: dict, to_email: str, subject: str, body: str) -> None:
+def _extract_email_address(value: str | None) -> str:
+    return parseaddr(value or "")[1]
+
+
+def _normalize_message_id(value: str | None) -> str:
+    if not value:
+        return ""
+    cleaned = value.strip()
+    if not cleaned:
+        return ""
+    matches = re.findall(r"<[^>]+>", cleaned)
+    if matches:
+        return matches[0]
+    if cleaned.startswith("<") and cleaned.endswith(">"):
+        return cleaned
+    return f"<{cleaned}>"
+
+
+def _extract_message_ids(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return re.findall(r"<[^>]+>", value)
+
+
+def _build_references(existing_references: str | None, in_reply_to: str | None, message_id: str | None) -> str:
+    ids: list[str] = []
+    for identifier in _extract_message_ids(existing_references):
+        if identifier not in ids:
+            ids.append(identifier)
+
+    normalized_in_reply_to = _normalize_message_id(in_reply_to)
+    if normalized_in_reply_to and normalized_in_reply_to not in ids:
+        ids.append(normalized_in_reply_to)
+
+    normalized_message_id = _normalize_message_id(message_id)
+    if normalized_message_id and normalized_message_id not in ids:
+        ids.append(normalized_message_id)
+
+    return " ".join(ids)
+
+
+def _looks_like_html(value: str) -> bool:
+    return bool(re.search(r"<[^>]+>", value or ""))
+
+
+def _to_html_preserving_lines(value: str) -> str:
+    escaped = html.escape(value or "")
+    return escaped.replace("\n", "<br>")
+
+
+def _signature_parts(config: dict) -> tuple[str, str]:
+    raw_signature = (config.get("email_signature") or "").strip()
+    if not raw_signature:
+        return DEFAULT_EMAIL_SIGNATURE_TEXT, DEFAULT_EMAIL_SIGNATURE_HTML
+    if _looks_like_html(raw_signature):
+        plain = _clean_snippet_text(raw_signature) or DEFAULT_EMAIL_SIGNATURE_TEXT
+        return plain, raw_signature
+    return raw_signature, _to_html_preserving_lines(raw_signature)
+
+
+def _smtp_send(
+    config: dict,
+    to_email: str,
+    subject: str,
+    body: str,
+    in_reply_to: str | None = None,
+    references: str | None = None,
+) -> None:
     smtp_host = config.get("smtp_host") or settings.smtp_host
     smtp_port = int(config.get("smtp_port") or settings.smtp_port)
     smtp_user = config.get("smtp_user") or config.get("username") or config.get("email") or settings.smtp_user
@@ -161,15 +242,23 @@ def _smtp_send(config: dict, to_email: str, subject: str, body: str) -> None:
     if not smtp_host:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SMTP host not configured")
 
-    # Append signature if configured
-    signature = config.get("email_signature", "").strip()
-    if signature:
-        body = f"{body}\n\n{signature}"
+    signature_text, signature_html = _signature_parts(config)
+    plain_body = (body or "").strip()
+    full_plain_body = f"{plain_body}\n\n{signature_text}".strip()
+    body_html = _to_html_preserving_lines(plain_body)
+    full_html_body = f"<div>{body_html}</div>{signature_html}" if body_html else signature_html
 
-    msg = MIMEText(body)
+    msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = from_email
     msg["To"] = to_email
+    if in_reply_to:
+        msg["In-Reply-To"] = in_reply_to
+    if references:
+        msg["References"] = references
+
+    msg.attach(MIMEText(full_plain_body, "plain", "utf-8"))
+    msg.attach(MIMEText(full_html_body, "html", "utf-8"))
 
     smtp_client = smtplib.SMTP_SSL if smtp_use_ssl else smtplib.SMTP
     with smtp_client(smtp_host, smtp_port) as server:
@@ -195,7 +284,7 @@ def get_mail_config(current_user: User = Depends(get_current_user), db: Session 
             "smtp_use_tls": True,
             "smtp_use_ssl": False,
             "has_password": False,
-            "email_signature": "",
+            "email_signature": DEFAULT_EMAIL_SIGNATURE_HTML,
         }
 
     return {
@@ -209,7 +298,7 @@ def get_mail_config(current_user: User = Depends(get_current_user), db: Session 
         "smtp_use_tls": raw.get("smtp_use_tls", True),
         "smtp_use_ssl": raw.get("smtp_use_ssl", False),
         "has_password": bool(raw.get("password_enc")),
-        "email_signature": raw.get("email_signature", ""),
+        "email_signature": raw.get("email_signature") or DEFAULT_EMAIL_SIGNATURE_HTML,
     }
 
 
@@ -218,7 +307,9 @@ def save_mail_config(payload: dict, current_user: User = Depends(get_current_use
     email_address = payload.get("email") or current_user.email
     username = payload.get("username") or email_address
     imap_host = payload.get("imap_host")
-    email_signature = payload.get("email_signature", "")
+    smtp_host = payload.get("smtp_host") or ""
+    email_signature = (payload.get("email_signature") or "").strip() or DEFAULT_EMAIL_SIGNATURE_HTML
+    password = (payload.get("password") or "").strip()
 
     if not imap_host:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="imap_host is required")
@@ -364,9 +455,13 @@ def get_message(message_id: str, current_user: User = Depends(get_current_user),
         return {
             "id": message_id,
             "from": _decode_mime(parsed.get("From")),
+            "reply_to": _decode_mime(parsed.get("Reply-To")) or _decode_mime(parsed.get("From")),
             "to": _decode_mime(parsed.get("To")),
             "subject": _decode_mime(parsed.get("Subject")),
             "date": parsed.get("Date", ""),
+            "message_id": parsed.get("Message-ID", ""),
+            "in_reply_to": parsed.get("In-Reply-To", ""),
+            "references": parsed.get("References", ""),
             "text_body": text_body,
             "html_body": html_body,
         }
@@ -486,18 +581,32 @@ def reply_mail(payload: dict, current_user: User = Depends(get_current_user), db
     if not raw:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mailbox config not found")
 
-    original_from = payload.get("reply_to")
+    original_from = payload.get("reply_to") or payload.get("from")
     original_subject = payload.get("subject", "")
     reply_body = payload.get("body", "")
+    original_message_id = payload.get("message_id", "")
+    original_in_reply_to = payload.get("in_reply_to", "")
+    original_references = payload.get("references", "")
     
-    if not original_from:
+    recipient = _extract_email_address(original_from)
+    if not recipient:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reply-to address is required")
 
     # Auto-prepend "Re:" if not already there
     reply_subject = original_subject if original_subject.lower().startswith("re:") else f"Re: {original_subject}"
 
+    in_reply_to = _normalize_message_id(original_message_id) or _normalize_message_id(original_in_reply_to)
+    references = _build_references(original_references, original_in_reply_to, original_message_id)
+
     try:
-        _smtp_send(raw, to_email=original_from, subject=reply_subject, body=reply_body)
+        _smtp_send(
+            raw,
+            to_email=recipient,
+            subject=reply_subject,
+            body=reply_body,
+            in_reply_to=in_reply_to or None,
+            references=references or None,
+        )
     except HTTPException:
         raise
     except Exception as exc:
