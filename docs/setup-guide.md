@@ -45,9 +45,11 @@ This starts:
 - Backend API: http://localhost:8000
 - API Documentation: http://localhost:8000/docs
 
-### 5. Create your first user (no PostgreSQL needed)
+### 5. Create your first user or admin (no PostgreSQL needed)
 
-The easiest way is to call the register endpoint:
+The easiest way is to call the register endpoint.
+
+#### Regular user
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/register \
@@ -55,11 +57,27 @@ curl -X POST http://localhost:8000/api/v1/auth/register \
 	-d '{
 		"email": "thomas@thokan.be",
 		"full_name": "Depreytere Thomas",
-		"password": "1034077111"
+		"password": "1034077111",
+		"role": "employee"
+	}'
+```
+
+#### Admin user
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/register \
+	-H "Content-Type: application/json" \
+	-d '{
+		"email": "admin@thokan.be",
+		"full_name": "ThoKan Admin",
+		"password": "1034077111",
+		"role": "admin"
 	}'
 ```
 
 Then login at http://localhost:3000 with that email/password.
+
+> Warning: this means the public register endpoint can currently create admin accounts when `role` is set to `admin`. Keep this only for trusted/internal setups, or lock down the endpoint before exposing the app publicly.
 
 ### 6. Promote a user to admin (PostgreSQL)
 
