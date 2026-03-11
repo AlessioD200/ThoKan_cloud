@@ -1,6 +1,20 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowUpRight,
+  Boxes,
+  Cog,
+  HardDrive,
+  PackageCheck,
+  RefreshCw,
+  Server,
+  ShoppingBag,
+  Sparkles,
+  Store,
+  WandSparkles,
+} from "lucide-react";
 import { LayoutShell } from "@/components/layout-shell";
 import { api, apiRaw } from "@/lib/api";
 
@@ -70,6 +84,59 @@ type GelatoConfig = {
   has_api_key: boolean;
   sku_map: Record<string, string>;
 };
+
+function SectionShell({
+  icon,
+  eyebrow,
+  title,
+  description,
+  children,
+  aside,
+}: {
+  icon: ReactNode;
+  eyebrow: string;
+  title: string;
+  description: string;
+  children: ReactNode;
+  aside?: ReactNode;
+}) {
+  return (
+    <section className="glass overflow-hidden rounded-[2rem] p-5 sm:p-6">
+      <div className="flex flex-col gap-4 border-b border-border/60 pb-5 md:flex-row md:items-start md:justify-between">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+            {icon}
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">{eyebrow}</p>
+            <h2 className="mt-1 text-xl font-semibold">{title}</h2>
+            <p className="mt-2 max-w-3xl text-sm opacity-65">{description}</p>
+          </div>
+        </div>
+        {aside ? <div className="shrink-0">{aside}</div> : null}
+      </div>
+      <div className="mt-5">{children}</div>
+    </section>
+  );
+}
+
+function StatCard({ label, value, hint }: { label: string; value: string | number; hint: string }) {
+  return (
+    <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+      <p className="mt-1 text-sm opacity-60">{hint}</p>
+    </div>
+  );
+}
+
+function getUpdateStateTone(state?: string) {
+  if (!state) return "bg-card/40 text-fg";
+  if (state === "success") return "bg-green-500/15 text-green-600 dark:text-green-300";
+  if (state === "failed" || state === "error") return "bg-red-500/15 text-red-600 dark:text-red-300";
+  if (state === "running") return "bg-yellow-500/15 text-yellow-700 dark:text-yellow-300";
+  return "bg-card/40 text-fg";
+}
 
 export default function SettingsPage() {
   const [info, setInfo] = useState<SystemInfo | null>(null);
@@ -382,39 +449,62 @@ export default function SettingsPage() {
     return title.toLowerCase().includes(query);
   }
 
+  const configuredIntegrations = Number(shopifyHasToken) + Number(gelatoHasKey);
+  const activeStorageUsage = info?.storage.percent_used ?? 0;
+
   return (
     <LayoutShell>
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">System Settings</h1>
-          <button
-            onClick={() => {
-              loadInfo();
-              loadUpdateData();
-            }}
-            disabled={loading}
-            className="rounded-xl border border-border bg-card px-4 py-2 text-sm transition hover:bg-accent/10 disabled:opacity-50"
-          >
-            {loading ? "Loading..." : "Refresh"}
-          </button>
-        </div>
+      <div className="space-y-5">
+        <section className="glass overflow-hidden rounded-[2rem] p-5 sm:p-6">
+          <div className="grid gap-5 lg:grid-cols-[1.3fr_0.9fr] lg:items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/40 px-3 py-1 text-xs font-medium opacity-80">
+                <WandSparkles className="h-3.5 w-3.5 text-accent" />
+                Refined system control center
+              </div>
+              <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">System Settings</h1>
+              <p className="mt-3 max-w-3xl text-sm opacity-70 sm:text-base">
+                Manage infrastructure, storage, integrations, and update workflows from a clearer professional settings experience.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  onClick={() => {
+                    loadInfo();
+                    loadUpdateData();
+                    loadUpdateConfig();
+                    loadShopifyConfig();
+                    loadGelatoConfig();
+                  }}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                  {loading ? "Refreshing..." : "Refresh settings"}
+                </button>
+                <div className="inline-flex items-center gap-2 rounded-2xl border border-border px-4 py-2.5 text-sm opacity-75">
+                  <Cog className="h-4 w-4" />
+                  {visibleSectionCount} visible sections
+                </div>
+              </div>
+            </div>
 
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-xl border border-border bg-card/30 p-3">
-            <p className="text-xs opacity-60">Visible sections</p>
-            <p className="mt-1 text-2xl font-semibold">{visibleSectionCount}</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <StatCard label="Visible" value={visibleSectionCount} hint="Sections matching current filters" />
+              <StatCard label="Mounts" value={info?.available_mounts?.length || 0} hint="Detected storage targets" />
+              <StatCard label="Integrations" value={configuredIntegrations} hint="Connected external services" />
+              <StatCard label="Storage" value={`${activeStorageUsage.toFixed(0)}%`} hint="Current disk usage" />
+            </div>
           </div>
-          <div className="rounded-xl border border-border bg-card/30 p-3">
-            <p className="text-xs opacity-60">Available mounts</p>
-            <p className="mt-1 text-2xl font-semibold">{info?.available_mounts?.length || 0}</p>
-          </div>
-          <div className="rounded-xl border border-border bg-card/30 p-3">
-            <p className="text-xs opacity-60">Configured integrations</p>
-            <p className="mt-1 text-2xl font-semibold">{Number(shopifyHasToken) + Number(gelatoHasKey)}</p>
-          </div>
-        </div>
+        </section>
 
-        <section className="glass sticky top-3 z-20 rounded-2xl p-4 backdrop-blur">
+        <section className="glass sticky top-3 z-20 rounded-[1.75rem] p-4 backdrop-blur">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Find the right setting faster</p>
+              <p className="text-xs opacity-55">Filter by area or search by section name.</p>
+            </div>
+            <div className="rounded-full bg-accent/15 px-3 py-1 text-xs font-medium text-accent">Professional view</div>
+          </div>
           <div className="grid gap-2 md:grid-cols-[1fr_auto]">
             <input
               type="text"
@@ -438,15 +528,19 @@ export default function SettingsPage() {
         </section>
 
         {status && (
-          <div className="rounded-xl border border-border bg-card/50 p-4 text-sm">
+          <div className="glass rounded-[1.5rem] border border-border/70 bg-card/50 p-4 text-sm">
             <p>{status}</p>
           </div>
         )}
 
         {shouldShowSection("core", "System Information") && (
-        <section className="glass rounded-2xl p-5">
-          <h2 className="text-xl font-semibold">System Information</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <SectionShell
+          icon={<Server className="h-5 w-5" />}
+          eyebrow="Core"
+          title="System Information"
+          description="A concise overview of the environment powering this cloud instance."
+        >
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-xl border border-border bg-card/30 p-3">
               <span className="text-xs font-medium opacity-70">Hostname</span>
               <p className="mt-1 font-mono text-sm">{info?.hostname || "-"}</p>
@@ -464,13 +558,23 @@ export default function SettingsPage() {
               <p className="mt-1 font-mono text-sm">{info?.python_version || "-"}</p>
             </div>
           </div>
-        </section>
+        </SectionShell>
         )}
 
         {shouldShowSection("storage", "Current Storage") && (
-        <section className="glass rounded-2xl p-5">
-          <h2 className="text-xl font-semibold">Current Storage</h2>
-          <div className="mt-4 rounded-xl border border-border bg-card/30 p-4">
+        <SectionShell
+          icon={<HardDrive className="h-5 w-5" />}
+          eyebrow="Storage"
+          title="Current Storage"
+          description="Monitor the active storage target and switch the main cloud file location safely."
+          aside={
+            <div className="rounded-2xl border border-border/70 bg-card/40 px-4 py-3 text-right">
+              <p className="text-xs uppercase tracking-[0.18em] opacity-45">Usage</p>
+              <p className="mt-1 text-lg font-semibold">{(info?.storage.free_gb ?? 0).toFixed(2)} GB free</p>
+            </div>
+          }
+        >
+          <div className="rounded-[1.5rem] border border-border bg-card/30 p-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">{info?.storage.current_path || "-"}</p>
@@ -491,7 +595,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="mt-4">
+          <div className="mt-5 rounded-[1.5rem] border border-border/70 bg-card/25 p-4">
             <label className="block text-sm font-medium">Change Storage Path</label>
             <p className="mt-1 text-xs opacity-60">Select a new path or mount point for storing cloud files</p>
             <div className="mt-2 flex gap-2">
@@ -510,19 +614,22 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
-        </section>
+        </SectionShell>
         )}
 
         {shouldShowSection("storage", "Available Mount Points") && (
-        <section className="glass rounded-2xl p-5">
-          <h2 className="text-xl font-semibold">Available Mount Points</h2>
-          <p className="mt-1 text-sm opacity-60">Detected disks and mount points on this system</p>
-          <div className="mt-4 space-y-3">
+        <SectionShell
+          icon={<Boxes className="h-5 w-5" />}
+          eyebrow="Storage"
+          title="Available Mount Points"
+          description="Review detected disks and quickly switch to another mount when needed."
+        >
+          <div className="space-y-3">
             {info?.available_mounts && info.available_mounts.length > 0 ? (
               info.available_mounts.map((mount, index) => {
                 const percent = mount.total_gb > 0 ? (mount.used_gb / mount.total_gb) * 100 : 0;
                 return (
-                  <div key={index} className="rounded-xl border border-border bg-card/30 p-4">
+                  <div key={index} className="rounded-[1.5rem] border border-border bg-card/30 p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
@@ -570,13 +677,21 @@ export default function SettingsPage() {
               </div>
             )}
           </div>
-        </section>
+        </SectionShell>
         )}
 
         {shouldShowSection("integrations", "Shopify Integration") && (
-        <section className="glass rounded-2xl p-5">
-          <h2 className="text-xl font-semibold">Shopify Integration</h2>
-          <p className="mt-1 text-sm opacity-60">Connect your Shopify store to display recent orders in the dashboard.</p>
+        <SectionShell
+          icon={<Store className="h-5 w-5" />}
+          eyebrow="Integrations"
+          title="Shopify Integration"
+          description="Connect Shopify to surface order data inside the cloud dashboard and fulfillment flow."
+          aside={
+            <div className={`rounded-full px-3 py-1 text-xs font-medium ${shopifyHasToken ? "bg-green-500/15 text-green-600 dark:text-green-300" : "bg-card/40"}`}>
+              {shopifyHasToken ? "Configured" : "Needs token"}
+            </div>
+          }
+        >
           <p className="mt-2 text-xs opacity-70">
             Gebruik hier je <strong>.myshopify.com</strong> admin domein (niet je storefront domein zoals thokan.be).
           </p>
@@ -653,7 +768,7 @@ export default function SettingsPage() {
             <button
               onClick={saveShopifyConfig}
               disabled={!shopifyDomain || !shopifyApiVersion || shopifyBusy}
-              className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+              className="rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
             >
               {shopifyBusy ? "Saving..." : "Save Shopify Config"}
             </button>
@@ -670,12 +785,21 @@ export default function SettingsPage() {
               <p>{shopifyTestStatus}</p>
             </div>
           )}
-        </section>
+        </SectionShell>
         )}
 
         {shouldShowSection("integrations", "Gelato Integration") && (
-        <section className="glass rounded-2xl p-5">
-          <h2 className="text-xl font-semibold">Gelato Integration</h2>
+        <SectionShell
+          icon={<ShoppingBag className="h-5 w-5" />}
+          eyebrow="Integrations"
+          title="Gelato Integration"
+          description="Configure Gelato for product mapping, pricing, and order placement from Shopify orders."
+          aside={
+            <div className={`rounded-full px-3 py-1 text-xs font-medium ${gelatoHasKey ? "bg-green-500/15 text-green-600 dark:text-green-300" : "bg-card/40"}`}>
+              {gelatoHasKey ? "Connected" : "Needs API key"}
+            </div>
+          }
+        >
           <p className="mt-1 text-sm opacity-60">
             Configure Gelato API for catalog discovery, pricing and order placement from Shopify orders.
           </p>
@@ -722,15 +846,24 @@ export default function SettingsPage() {
               {gelatoBusy ? "Saving..." : "Save Gelato Config"}
             </button>
           </div>
-        </section>
+        </SectionShell>
         )}
 
         {shouldShowSection("updates", "System Updates") && (
-        <section className="glass rounded-2xl p-5">
-          <h2 className="text-xl font-semibold">System Updates</h2>
+        <SectionShell
+          icon={<PackageCheck className="h-5 w-5" />}
+          eyebrow="Updates"
+          title="System Updates"
+          description="Run stable or beta updates from your own source with clearer controls for fetch, upload, and apply flows."
+          aside={
+            <div className={`rounded-full px-3 py-1 text-xs font-medium ${getUpdateStateTone(updateStatus?.state)}`}>
+              {updateStatus?.state || "idle"}
+            </div>
+          }
+        >
           <p className="mt-1 text-sm opacity-60">Gebruik stabiele of beta channel updates zonder GitHub-koppeling, direct vanaf je eigen updatebron.</p>
 
-          <div className="mt-4 grid gap-3 rounded-xl border border-border bg-card/30 p-4 md:grid-cols-2">
+          <div className="mt-4 grid gap-3 rounded-[1.5rem] border border-border bg-card/30 p-4 md:grid-cols-2">
             <div>
               <label className="block text-sm font-medium">Update channel</label>
               <select
@@ -781,15 +914,16 @@ export default function SettingsPage() {
               <button
                 onClick={saveUpdateConfig}
                 disabled={!updateConfig || updateBusy}
-                className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+                className="rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
               >
                 {updateBusy ? "Saving..." : "Save update settings"}
               </button>
               <button
                 onClick={fetchLatestUpdate}
                 disabled={fetchBusy || !updateConfig}
-                className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium transition hover:bg-accent/10 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2 text-sm font-medium transition hover:bg-accent/10 disabled:opacity-50"
               >
+                <ArrowUpRight className="h-4 w-4" />
                 {fetchBusy ? "Fetching..." : `Fetch latest ${updateChannel}`}
               </button>
             </div>
@@ -838,7 +972,7 @@ export default function SettingsPage() {
           </div>
 
           {updateStatus && (
-            <div className="mt-4 rounded-xl border border-border bg-card/30 p-4 text-sm">
+            <div className="mt-4 rounded-[1.5rem] border border-border bg-card/30 p-4 text-sm">
               <p>
                 Status: <span className="font-medium">{updateStatus.state}</span>
               </p>
@@ -859,7 +993,7 @@ export default function SettingsPage() {
               )}
             </div>
           )}
-        </section>
+        </SectionShell>
         )}
 
         {visibleSectionCount === 0 && (

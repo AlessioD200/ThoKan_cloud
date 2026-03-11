@@ -546,6 +546,24 @@ def get_message(message_id: str, folder: str = "INBOX", current_user: User = Dep
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Message fetch failed: {exc}") from exc
 
 
+def _parse_imap_folder_name(mailbox: bytes) -> str:
+    """
+    Extract folder name from an IMAP LIST response line.
+    Format: (<flags>) <delimiter> <mailbox-name>
+    The mailbox-name may be quoted ("Sent Items") or unquoted (Sent).
+    """
+    # Quoted name at end: ...  "Folder Name"  or  ... "Folder Name"\r\n
+    m = re.search(rb'"([^"]+)"\s*$', mailbox)
+    if m:
+        return m.group(1).decode("utf-8", errors="ignore").strip()
+    # Unquoted name at end: after the last space following the delimiter token
+    # LIST format ends with: ) "delim" NAME  or  ) NIL NAME
+    m2 = re.search(rb'\)\s+(?:"[^"]*"|NIL)\s+(.+)$', mailbox, re.IGNORECASE)
+    if m2:
+        return m2.group(1).decode("utf-8", errors="ignore").strip().strip('"')
+    return ""
+
+
 def _find_sent_folder(client: imaplib.IMAP4_SSL | imaplib.IMAP4) -> str:
     """Find Sent folder on IMAP server, returns 'Sent' as fallback."""
     try:
@@ -553,21 +571,17 @@ def _find_sent_folder(client: imaplib.IMAP4_SSL | imaplib.IMAP4) -> str:
         if not mailboxes:
             return "Sent"
 
-        # Check for \\Sent attribute flag first (most reliable)
+        # Pass 1: check for \Sent attribute flag (most reliable)
         for mailbox in mailboxes:
             if not mailbox:
                 continue
             mailbox_bytes = mailbox if isinstance(mailbox, bytes) else mailbox.encode()
             if b"\\Sent" in mailbox_bytes:
-                parts = mailbox_bytes.rsplit(b'"', 2)
-                if len(parts) >= 2:
-                    name = parts[-2].decode("utf-8", errors="ignore").strip()
-                    if name:
-                        return name
-                parts = mailbox_bytes.rsplit(b" ", 1)
-                return parts[-1].decode("utf-8", errors="ignore").strip().strip('"')
+                name = _parse_imap_folder_name(mailbox_bytes)
+                if name:
+                    return name
 
-        # Fall back to name matching
+        # Pass 2: fall back to well-known name matching
         sent_patterns = [
             b"[Gmail]/Sent Mail",
             b"Sent Items",
@@ -583,13 +597,9 @@ def _find_sent_folder(client: imaplib.IMAP4_SSL | imaplib.IMAP4) -> str:
             mailbox_lower = mailbox_bytes.lower()
             for pattern in sent_patterns:
                 if pattern.lower() in mailbox_lower:
-                    parts = mailbox_bytes.rsplit(b'"', 2)
-                    if len(parts) >= 2:
-                        name = parts[-2].decode("utf-8", errors="ignore").strip()
-                        if name:
-                            return name
-                    parts = mailbox_bytes.rsplit(b" ", 1)
-                    return parts[-1].decode("utf-8", errors="ignore").strip().strip('"')
+                    name = _parse_imap_folder_name(mailbox_bytes)
+                    if name:
+                        return name
 
         return "Sent"
     except Exception:
@@ -602,24 +612,33 @@ def _find_trash_folder(client: imaplib.IMAP4_SSL | imaplib.IMAP4) -> str | None:
         _, mailboxes = client.list()
         if not mailboxes:
             return None
-        
+
+        # Pass 1: check for \Trash attribute flag
+        for mailbox in mailboxes:
+            if not mailbox:
+                continue
+            mailbox_bytes = mailbox if isinstance(mailbox, bytes) else mailbox.encode()
+            if b"\\Trash" in mailbox_bytes:
+                name = _parse_imap_folder_name(mailbox_bytes)
+                if name:
+                    return name
+
         trash_patterns = [
-            b"[Gmail]/Trash", b"[Gmail]/Bin", b"Trash", b"Deleted", 
+            b"[Gmail]/Trash", b"[Gmail]/Bin", b"Trash", b"Deleted",
             b"Deleted Items", b"[Sieve]/Trash", b".Trash", b"INBOX.Trash"
         ]
-        
+
         for mailbox in mailboxes:
-            mailbox_name = mailbox if isinstance(mailbox, bytes) else mailbox.encode()
-            mailbox_lower = mailbox_name.lower()
+            if not mailbox:
+                continue
+            mailbox_bytes = mailbox if isinstance(mailbox, bytes) else mailbox.encode()
+            mailbox_lower = mailbox_bytes.lower()
             for pattern in trash_patterns:
                 if pattern.lower() in mailbox_lower:
-                    # Extract name from LIST response format: (...) "/" "FolderName"
-                    parts = mailbox.split(b'"' if b'"' in mailbox else b' ')
-                    for i, part in enumerate(parts):
-                        if pattern.lower() in part.lower():
-                            return part.decode('utf-8', errors='ignore').strip('"')
-                    return mailbox_name.decode('utf-8', errors='ignore')
-        
+                    name = _parse_imap_folder_name(mailbox_bytes)
+                    if name:
+                        return name
+
         return None
     except Exception:
         return None

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
-import { LayoutGrid, Folder, Mail, Shield, Settings } from "lucide-react";
+import { ChevronRight, Folder, LayoutGrid, LogOut, Mail, Settings, Shield, Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ensureSession } from "@/lib/api";
 
@@ -21,6 +21,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const isNative = Capacitor.isNativePlatform();
   const [authChecked, setAuthChecked] = useState(false);
+  const activeItem = items.find((item) => pathname.startsWith(item.href)) ?? items[0];
 
   useEffect(() => {
     let cancelled = false;
@@ -50,8 +51,10 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
 
   if (!authChecked) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-sm opacity-60">Loading...</p>
+      <div className="flex min-h-screen items-center justify-center bg-bg">
+        <div className="glass rounded-3xl px-6 py-5 text-center">
+          <p className="text-sm opacity-60">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -59,10 +62,11 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
   if (isNative) {
     return (
       <div className="min-h-screen bg-bg pt-safe-top-offset pb-32">
-        <main className="px-3 py-3">{children}</main>
+        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_35%),radial-gradient(circle_at_bottom,_rgba(14,165,233,0.08),_transparent_30%)]" />
+        <main className="relative px-3 py-3">{children}</main>
 
-        <nav className="bottom-safe-lift fixed inset-x-3 z-30 rounded-2xl border border-border/60 bg-card/95 backdrop-blur-md">
-          <div className="grid grid-cols-5 px-1 py-3">
+        <nav className="bottom-safe-lift fixed inset-x-3 z-30 rounded-[1.75rem] border border-border/60 bg-card/90 p-2 shadow-glass backdrop-blur-md">
+          <div className="grid grid-cols-5 gap-1">
             {items.map((item) => {
               const active = pathname.startsWith(item.href);
               const Icon = item.icon;
@@ -71,8 +75,8 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[11px] transition ${
-                    active ? "text-accent" : "opacity-70"
+                  className={`flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2.5 text-[11px] transition ${
+                    active ? "bg-accent/15 text-accent" : "opacity-70"
                   }`}
                 >
                   <Icon className={`h-4 w-4 ${active ? "text-accent" : ""}`} />
@@ -87,39 +91,93 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto grid max-w-7xl grid-cols-12 gap-4 p-4">
-        <aside className="glass col-span-12 rounded-2xl p-4 lg:col-span-3">
-          <div className="mb-4">
-            <img src="/Logo_tekst_CV.png" alt="ThoKan Cloud" className="h-12 w-auto" />
-          </div>
-          <nav className="space-y-2">
-            {items.map((item) => {
-              const active = pathname.startsWith(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`block rounded-xl px-3 py-2 transition ${
-                    active ? "bg-accent/20 text-accent" : "hover:bg-card/70"
-                  }`}
+    <div className="min-h-screen bg-bg">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.14),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.1),_transparent_26%)]" />
+      <div className="relative mx-auto grid max-w-7xl grid-cols-12 gap-4 p-4 lg:gap-5 lg:p-5">
+        <aside className="glass col-span-12 rounded-[2rem] p-4 lg:sticky lg:top-4 lg:col-span-3 lg:h-[calc(100vh-2rem)] lg:overflow-hidden lg:p-5">
+          <div className="flex h-full flex-col">
+            <div className="rounded-[1.75rem] border border-border/70 bg-card/50 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">ThoKan</p>
+                  <h2 className="text-lg font-semibold">Cloud suite</h2>
+                </div>
+              </div>
+              <div className="mt-4 rounded-2xl border border-border/70 bg-card/40 p-3">
+                <p className="text-xs uppercase tracking-[0.2em] opacity-45">Current area</p>
+                <div className="mt-2 flex items-center justify-between">
+                  <div>
+                    <p className="text-base font-semibold">{activeItem.label}</p>
+                    <p className="text-xs opacity-55">Focused workspace</p>
+                  </div>
+                  <activeItem.icon className="h-5 w-5 text-accent" />
+                </div>
+              </div>
+            </div>
+
+            <nav className="mt-4 space-y-2">
+              {items.map((item) => {
+                const active = pathname.startsWith(item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center justify-between rounded-2xl px-3.5 py-3 transition ${
+                      active ? "bg-accent/15 text-accent shadow-sm" : "hover:bg-card/70"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${active ? "bg-accent/15" : "bg-card/50"}`}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{item.label}</p>
+                        <p className="text-xs opacity-50">Open {item.label.toLowerCase()}</p>
+                      </div>
+                    </div>
+                    <ChevronRight className={`h-4 w-4 transition ${active ? "opacity-100" : "opacity-30"}`} />
+                  </Link>
+                );
+              })}
+            </nav>
+
+            <div className="mt-4 rounded-[1.75rem] border border-border/70 bg-card/45 p-4">
+              <p className="text-xs uppercase tracking-[0.2em] opacity-45">Workspace tools</p>
+              <div className="mt-3 space-y-2">
+                <ThemeToggle />
+                <button
+                  onClick={handleLogout}
+                  className="flex w-full items-center justify-between rounded-2xl border border-border px-3.5 py-3 text-left text-sm transition hover:bg-card/70"
                 >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-          <div className="mt-4 space-y-2">
-            <ThemeToggle />
-            <button
-              onClick={handleLogout}
-              className="w-full rounded-xl border border-border px-3 py-2 text-left text-sm transition hover:bg-card/70"
-            >
-              Logout
-            </button>
+                  <span>Logout</span>
+                  <LogOut className="h-4 w-4 opacity-60" />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-auto hidden rounded-[1.75rem] border border-border/70 bg-card/35 p-4 text-sm opacity-65 lg:block">
+              Smooth access to files, mail, admin, and updates from one consistent shell.
+            </div>
           </div>
         </aside>
-        <main className="col-span-12 lg:col-span-9">{children}</main>
+        <main className="col-span-12 lg:col-span-9">
+          <div className="mb-4 rounded-[1.75rem] border border-border/60 bg-card/35 px-4 py-3 shadow-glass backdrop-blur sm:px-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">Workspace</p>
+                <h1 className="text-lg font-semibold">{activeItem.label}</h1>
+              </div>
+              <div className="rounded-full bg-accent/15 px-3 py-1 text-xs font-medium text-accent">
+                Active
+              </div>
+            </div>
+          </div>
+          {children}
+        </main>
       </div>
     </div>
   );

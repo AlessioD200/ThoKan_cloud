@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Moon, SunMedium } from "lucide-react";
 
 export function ThemeToggle() {
   const [dark, setDark] = useState(false);
@@ -22,9 +23,10 @@ export function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      className="rounded-xl border border-border px-3 py-2 text-sm transition hover:scale-[1.02]"
+      className="flex w-full items-center justify-between rounded-2xl border border-border px-3.5 py-3 text-sm transition hover:bg-card/70"
     >
-      {dark ? "Light" : "Dark"} mode
+      <span>{dark ? "Light" : "Dark"} mode</span>
+      {dark ? <SunMedium className="h-4 w-4 opacity-70" /> : <Moon className="h-4 w-4 opacity-70" />}
     </button>
   );
 }

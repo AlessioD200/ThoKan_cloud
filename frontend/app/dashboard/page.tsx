@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Activity, Boxes, HardDrive, RefreshCw, Server, ShoppingCart, Sparkles } from "lucide-react";
 import { LayoutShell } from "@/components/layout-shell";
 import { api } from "@/lib/api";
 
@@ -230,34 +231,98 @@ export default function DashboardPage() {
 
   return (
     <LayoutShell>
-      <div className="space-y-4">
-        <div className="glass sticky top-3 z-20 flex items-center justify-between rounded-2xl p-4 backdrop-blur">
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <button
-            onClick={loadData}
-            disabled={loading}
-            className="rounded-xl border border-border bg-card px-4 py-2 text-sm transition hover:bg-accent/10 disabled:opacity-50"
-          >
-            {loading ? "Loading..." : "Refresh"}
-          </button>
-        </div>
+      <div className="space-y-5">
+        <section className="glass overflow-hidden rounded-[2rem] p-5 sm:p-6">
+          <div className="grid gap-5 lg:grid-cols-[1.25fr_0.95fr] lg:items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/40 px-3 py-1 text-xs font-medium opacity-80">
+                <Sparkles className="h-3.5 w-3.5 text-accent" />
+                Operational overview
+              </div>
+              <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">Dashboard</h1>
+              <p className="mt-3 max-w-3xl text-sm opacity-70 sm:text-base">
+                Monitor storage, recent activity, and order operations from a clearer workspace built for faster decisions.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  onClick={loadData}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                  {loading ? "Refreshing..." : "Refresh dashboard"}
+                </button>
+                <div className="rounded-2xl border border-border px-4 py-2.5 text-sm opacity-70">
+                  {orders.length} Shopify orders loaded
+                </div>
+              </div>
+            </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div className="glass rounded-2xl p-5">
-            <h3 className="text-sm font-medium opacity-70">Total Storage Used</h3>
-            <p className="mt-2 text-3xl font-bold">{formatBytes(data?.used_bytes || 0)}</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Storage used</p>
+                <p className="mt-2 text-2xl font-semibold">{formatBytes(data?.used_bytes || 0)}</p>
+                <p className="mt-1 text-sm opacity-60">User data currently stored</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Files</p>
+                <p className="mt-2 text-2xl font-semibold">{data?.files_count || 0}</p>
+                <p className="mt-1 text-sm opacity-60">Items inside cloud storage</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">System disk</p>
+                <p className="mt-2 text-2xl font-semibold">{storagePercent.toFixed(1)}%</p>
+                <p className="mt-1 text-sm opacity-60">Current platform disk usage</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Activity</p>
+                <p className="mt-2 text-2xl font-semibold">{filteredActivity.length}</p>
+                <p className="mt-1 text-sm opacity-60">Visible recent events</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="glass rounded-[1.75rem] p-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+                <HardDrive className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium opacity-70">Total Storage Used</h3>
+                <p className="text-xs opacity-55">Cloud data footprint</p>
+              </div>
+            </div>
+            <p className="mt-4 text-3xl font-bold">{formatBytes(data?.used_bytes || 0)}</p>
             <ProgressBar current={data?.used_bytes || 0} total={(data?.system_info?.storage_total_gb || 1) * 1024 ** 3} />
           </div>
 
-          <div className="glass rounded-2xl p-5">
-            <h3 className="text-sm font-medium opacity-70">Total Files</h3>
-            <p className="mt-2 text-3xl font-bold">{data?.files_count || 0}</p>
+          <div className="glass rounded-[1.75rem] p-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+                <Boxes className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium opacity-70">Total Files</h3>
+                <p className="text-xs opacity-55">Managed stored items</p>
+              </div>
+            </div>
+            <p className="mt-4 text-3xl font-bold">{data?.files_count || 0}</p>
             <p className="mt-2 text-sm opacity-60">files uploaded</p>
           </div>
 
-          <div className="glass rounded-2xl p-5">
-            <h3 className="text-sm font-medium opacity-70">System Disk</h3>
-            <p className="mt-2 text-3xl font-bold">{storagePercent.toFixed(1)}%</p>
+          <div className="glass rounded-[1.75rem] p-5 md:col-span-2 xl:col-span-1">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+                <Server className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium opacity-70">System Disk</h3>
+                <p className="text-xs opacity-55">Host capacity and headroom</p>
+              </div>
+            </div>
+            <p className="mt-4 text-3xl font-bold">{storagePercent.toFixed(1)}%</p>
             <ProgressBar
               current={data?.system_info?.storage_used_gb || 0}
               total={data?.system_info?.storage_total_gb || 1}
@@ -269,9 +334,17 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="glass rounded-2xl p-5">
-          <h2 className="text-xl font-semibold">System Information</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className="glass rounded-[2rem] p-5 sm:p-6">
+          <div className="flex items-start gap-4 border-b border-border/60 pb-5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+              <Server className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold">System Information</h2>
+              <p className="mt-2 text-sm opacity-65">Core platform details for the running environment.</p>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-xl border border-border bg-card/30 p-3">
               <span className="text-xs font-medium opacity-70">Hostname</span>
               <p className="mt-1 font-mono text-sm">{data?.system_info?.hostname || "-"}</p>
@@ -291,15 +364,26 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <section className="glass rounded-2xl p-5">
-            <h3 className="font-medium">Recent Files</h3>
-            <ul className="mt-3 space-y-2">
+        <div className="grid gap-4 xl:grid-cols-2">
+          <section className="glass rounded-[2rem] p-5 sm:p-6">
+            <div className="flex items-start gap-4 border-b border-border/60 pb-5">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+                <Boxes className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Recent Files</h3>
+                <p className="mt-1 text-sm opacity-65">Recently created or uploaded files in the cloud.</p>
+              </div>
+            </div>
+            <ul className="mt-5 space-y-3">
               {data?.recent_files && data.recent_files.length > 0 ? (
                 data.recent_files.map((file) => (
-                  <li key={file.id} className="flex items-center justify-between rounded-xl border border-border p-3">
-                    <span className="truncate text-sm font-medium">{file.name}</span>
-                    <span className="ml-2 text-xs opacity-60">{formatBytes(file.size_bytes)}</span>
+                  <li key={file.id} className="flex items-center justify-between gap-3 rounded-[1.5rem] border border-border bg-card/25 p-4">
+                    <div className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{file.name}</span>
+                      <span className="mt-1 block text-xs opacity-55">{new Date(file.created_at).toLocaleString()}</span>
+                    </div>
+                    <span className="ml-2 shrink-0 text-xs opacity-60">{formatBytes(file.size_bytes)}</span>
                   </li>
                 ))
               ) : (
@@ -310,9 +394,19 @@ export default function DashboardPage() {
             </ul>
           </section>
 
-          <section className="glass rounded-2xl p-5">
-            <h3 className="font-medium">Activity Logs</h3>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+          <section className="glass rounded-[2rem] p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+                  <Activity className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Activity Logs</h3>
+                  <p className="mt-1 text-sm opacity-65">Recent system actions and operational events.</p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-wrap items-center gap-2">
               <label className="text-xs opacity-60">Filter</label>
               <select
                 value={activityFilter}
@@ -327,10 +421,10 @@ export default function DashboardPage() {
                 ))}
               </select>
             </div>
-            <ul className="mt-3 space-y-2">
+            <ul className="mt-4 space-y-3">
               {filteredActivity.length > 0 ? (
                 filteredActivity.map((entry, index) => (
-                  <li key={`${entry.event_type}-${index}`} className="rounded-xl border border-border p-3">
+                  <li key={`${entry.event_type}-${index}`} className="rounded-[1.5rem] border border-border bg-card/25 p-4">
                     <span className="text-sm font-medium">{entry.event_type}</span>
                     <p className="mt-1 text-xs opacity-60">{new Date(entry.created_at).toLocaleString()}</p>
                   </li>
@@ -344,13 +438,21 @@ export default function DashboardPage() {
           </section>
         </div>
 
-        <section className="glass rounded-2xl p-5">
-          <div className="flex items-center justify-between">
-            <h3 className="font-medium">Shopify Orders</h3>
-            <span className="text-xs opacity-60">Latest 10</span>
+        <section className="glass rounded-[2rem] p-5 sm:p-6">
+          <div className="flex flex-col gap-4 border-b border-border/60 pb-5 md:flex-row md:items-start md:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+                <ShoppingCart className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Shopify Orders</h3>
+                <p className="mt-1 text-sm opacity-65">Review the latest store orders and open full fulfillment details.</p>
+              </div>
+            </div>
+            <span className="rounded-full bg-card/45 px-3 py-1 text-xs opacity-70">Latest 10</span>
           </div>
 
-          <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto_auto]">
+          <div className="mt-5 grid gap-2 md:grid-cols-[1fr_auto_auto]">
             <input
               value={ordersSearch}
               onChange={(e) => setOrdersSearch(e.target.value)}
@@ -380,17 +482,17 @@ export default function DashboardPage() {
 
           {ordersError && <p className="mt-3 text-sm text-red-400">{ordersError}</p>}
 
-          <div className="mt-3 overflow-x-auto">
+          <div className="mt-4 overflow-x-auto rounded-[1.5rem] border border-border bg-card/20">
             {filteredOrders.length > 0 ? (
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left opacity-70">
-                    <th className="px-2 py-2">Order</th>
-                    <th className="px-2 py-2">Customer</th>
-                    <th className="px-2 py-2">Total</th>
-                    <th className="px-2 py-2">Payment</th>
-                    <th className="px-2 py-2">Fulfillment</th>
-                    <th className="px-2 py-2">Created</th>
+                    <th className="px-4 py-3">Order</th>
+                    <th className="px-4 py-3">Customer</th>
+                    <th className="px-4 py-3">Total</th>
+                    <th className="px-4 py-3">Payment</th>
+                    <th className="px-4 py-3">Fulfillment</th>
+                    <th className="px-4 py-3">Created</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -400,14 +502,14 @@ export default function DashboardPage() {
                       className="cursor-pointer border-b border-border/50 hover:bg-card/20"
                       onClick={() => openOrderDetail(order.id)}
                     >
-                      <td className="px-2 py-2 font-medium">{order.name}</td>
-                      <td className="px-2 py-2">{order.customer_name || order.email || "-"}</td>
-                      <td className="px-2 py-2">
+                      <td className="px-4 py-3 font-medium">{order.name}</td>
+                      <td className="px-4 py-3">{order.customer_name || order.email || "-"}</td>
+                      <td className="px-4 py-3">
                         {order.total_price} {order.currency}
                       </td>
-                      <td className="px-2 py-2">{order.financial_status || "-"}</td>
-                      <td className="px-2 py-2">{order.fulfillment_status || "unfulfilled"}</td>
-                      <td className="px-2 py-2">{order.created_at ? new Date(order.created_at).toLocaleString() : "-"}</td>
+                      <td className="px-4 py-3">{order.financial_status || "-"}</td>
+                      <td className="px-4 py-3">{order.fulfillment_status || "unfulfilled"}</td>
+                      <td className="px-4 py-3">{order.created_at ? new Date(order.created_at).toLocaleString() : "-"}</td>
                     </tr>
                   ))}
                 </tbody>

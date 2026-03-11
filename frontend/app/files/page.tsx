@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ChevronRight, FileText, FolderPlus, HardDrive, RefreshCw, Search, Sparkles } from "lucide-react";
 import { LayoutShell } from "@/components/layout-shell";
 import { UploadDropzone } from "@/components/upload-dropzone";
 import { api, apiRaw, getApiBase } from "@/lib/api";
@@ -380,17 +381,48 @@ export default function FilesPage() {
 
   return (
     <LayoutShell>
-      <div className="space-y-4">
-        <section className="glass sticky top-3 z-20 rounded-2xl p-4 backdrop-blur">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="space-y-5">
+        <section className="glass overflow-hidden rounded-[2rem] p-5 sm:p-6">
+          <div className="grid gap-5 lg:grid-cols-[1.25fr_0.95fr] lg:items-center">
             <div>
-              <h1 className="text-xl font-semibold">Bestandsbeheer</h1>
-              <p className="text-xs opacity-70">Overzicht, zoeken en acties op één plek.</p>
+              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/40 px-3 py-1 text-xs font-medium opacity-80">
+                <Sparkles className="h-3.5 w-3.5 text-accent" />
+                Modern file workspace
+              </div>
+              <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">Bestandsbeheer</h1>
+              <p className="mt-3 max-w-3xl text-sm opacity-70 sm:text-base">
+                Beheer mappen, uploads, previews en downloads vanuit één duidelijke professionele bestandenomgeving.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  onClick={() => void loadFiles()}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Refresh files
+                </button>
+                <div className="rounded-2xl border border-border px-4 py-2.5 text-sm opacity-70">
+                  Pad: {currentPath}
+                </div>
+              </div>
             </div>
-            <div className="flex gap-2 text-xs">
-              <div className="rounded-lg border border-border bg-card/30 px-3 py-2">Mappen: {visibleFolders.length}</div>
-              <div className="rounded-lg border border-border bg-card/30 px-3 py-2">Bestanden: {visibleFiles.length}</div>
-              <div className="rounded-lg border border-border bg-card/30 px-3 py-2">Grootte: {formatBytes(folderStorageBytes)}</div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Folders</p>
+                <p className="mt-2 text-2xl font-semibold">{visibleFolders.length}</p>
+                <p className="mt-1 text-sm opacity-60">Visible in current path</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Files</p>
+                <p className="mt-2 text-2xl font-semibold">{visibleFiles.length}</p>
+                <p className="mt-1 text-sm opacity-60">Items in this folder</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Storage</p>
+                <p className="mt-2 text-2xl font-semibold">{formatBytes(folderStorageBytes)}</p>
+                <p className="mt-1 text-sm opacity-60">Current folder footprint</p>
+              </div>
             </div>
           </div>
         </section>
@@ -398,60 +430,93 @@ export default function FilesPage() {
         <UploadDropzone onUploaded={loadFiles} folderId={currentFolderId} />
 
         {userNotice && (
-          <div className="glass rounded-xl p-3 text-sm opacity-90">
+          <div className="glass rounded-[1.5rem] p-4 text-sm opacity-90">
             {userNotice}
           </div>
         )}
         {userError && (
-          <div className="glass rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+          <div className="glass rounded-[1.5rem] border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
             {userError}
           </div>
         )}
 
-        {/* Breadcrumb Navigation */}
-        <div className="glass flex items-center gap-2 rounded-2xl p-4">
-          <button
-            onClick={() => setCurrentFolderId(null)}
-            className={`rounded-lg px-3 py-1 text-sm transition ${
-              currentFolderId === null ? "bg-accent/20 font-medium text-accent" : "hover:bg-card/70"
-            }`}
-          >
-            Home
-          </button>
-          {breadcrumbs.map((crumb, i) => {
-            const folderForCrumb = folders.find((f) => f.path === "/" + breadcrumbs.slice(0, i + 1).join("/"));
-            return (
-              <div key={i} className="flex items-center gap-2">
-                <span className="opacity-50">/</span>
-                <button
-                  onClick={() => setCurrentFolderId(folderForCrumb?.id || null)}
-                  className="rounded-lg px-3 py-1 text-sm transition hover:bg-card/70"
-                >
-                  {crumb}
-                </button>
+        <div className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
+          <section className="glass rounded-[2rem] p-5">
+            <div className="flex items-start gap-4 border-b border-border/60 pb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+                <HardDrive className="h-5 w-5" />
               </div>
-            );
-          })}
+              <div>
+                <h2 className="text-lg font-semibold">Path navigation</h2>
+                <p className="mt-1 text-sm opacity-65">Browse through folders and jump directly to any breadcrumb level.</p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setCurrentFolderId(null)}
+                className={`rounded-2xl px-3 py-2 text-sm transition ${
+                  currentFolderId === null ? "bg-accent/20 font-medium text-accent" : "border border-border hover:bg-card/70"
+                }`}
+              >
+                Home
+              </button>
+              {breadcrumbs.map((crumb, i) => {
+                const folderForCrumb = folders.find((f) => f.path === "/" + breadcrumbs.slice(0, i + 1).join("/"));
+                return (
+                  <div key={i} className="flex items-center gap-2">
+                    <ChevronRight className="h-4 w-4 opacity-35" />
+                    <button
+                      onClick={() => setCurrentFolderId(folderForCrumb?.id || null)}
+                      className="rounded-2xl border border-border px-3 py-2 text-sm transition hover:bg-card/70"
+                    >
+                      {crumb}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <form onSubmit={createFolder} className="glass rounded-[2rem] p-5">
+            <div className="flex items-start gap-4 border-b border-border/60 pb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+                <FolderPlus className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold">Create folder</h2>
+                <p className="mt-1 text-sm opacity-65">Add a new folder inside the current location.</p>
+              </div>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <input
+                value={newFolder}
+                onChange={(e) => setNewFolder(e.target.value)}
+                placeholder="New folder name"
+                className="flex-1 rounded-2xl border border-border bg-transparent px-3 py-2.5"
+              />
+              <button className="rounded-2xl bg-accent/80 px-4 py-2.5 text-white">Create</button>
+            </div>
+          </form>
         </div>
 
-        <form onSubmit={createFolder} className="glass flex gap-2 rounded-2xl p-4">
-          <input
-            value={newFolder}
-            onChange={(e) => setNewFolder(e.target.value)}
-            placeholder="Create folder"
-            className="flex-1 rounded-xl border border-border bg-transparent px-3 py-2"
-          />
-          <button className="rounded-xl bg-accent/80 px-4 py-2 text-white">Create Folder</button>
-        </form>
-
-        <section className="glass sticky top-[92px] z-10 rounded-2xl p-4 backdrop-blur">
+        <section className="glass sticky top-[92px] z-10 rounded-[1.75rem] p-4 backdrop-blur">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Search, filter and sort</p>
+              <p className="text-xs opacity-55">Refine the current folder view without changing location.</p>
+            </div>
+            <div className="rounded-full bg-accent/15 px-3 py-1 text-xs font-medium text-accent">Live filters</div>
+          </div>
           <div className="grid gap-3 md:grid-cols-3">
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Zoek op bestandsnaam..."
-              className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
-            />
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 opacity-45" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Zoek op bestandsnaam..."
+                className="w-full rounded-xl border border-border bg-transparent py-2 pl-9 pr-3 text-sm"
+              />
+            </div>
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
@@ -477,24 +542,24 @@ export default function FilesPage() {
           </div>
         </section>
 
-        <section className="glass rounded-2xl p-4">
-          <div className="mb-3 flex items-center justify-between">
+        <section className="glass rounded-[2rem] p-5 sm:p-6">
+          <div className="mb-5 flex items-center justify-between gap-3 border-b border-border/60 pb-5">
             <h2 className="text-lg font-semibold">
               {currentFolder ? currentFolder.name : "My Files"}
             </h2>
             {currentFolder && (
-              <button onClick={navigateUp} className="rounded-lg border border-border px-3 py-1 text-sm transition hover:bg-card/70">
+              <button onClick={navigateUp} className="rounded-2xl border border-border px-3 py-2 text-sm transition hover:bg-card/70">
                 ← Back
               </button>
             )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             {/* Folders */}
             {visibleFolders.map((folder) => (
               <div
                 key={folder.id}
-                className="flex items-center justify-between rounded-xl border border-border bg-card/30 p-3"
+                className="flex items-center justify-between rounded-[1.5rem] border border-border bg-card/30 p-4"
               >
                 <div className="flex flex-1 cursor-pointer items-center gap-3" onClick={() => setCurrentFolderId(folder.id)}>
                   <div className="text-2xl">📁</div>
@@ -516,7 +581,7 @@ export default function FilesPage() {
             {filteredFiles.map((file) => (
               <div
                 key={file.id}
-                className="relative flex items-center justify-between rounded-xl border border-border p-3 text-sm cursor-pointer transition hover:bg-accent/5"
+                className="relative flex items-center justify-between rounded-[1.5rem] border border-border bg-card/20 p-4 text-sm cursor-pointer transition hover:bg-accent/5"
                 onDoubleClick={() => void openPreview(file)}
               >
                 <div className="flex flex-1 items-center gap-3">
@@ -615,11 +680,19 @@ export default function FilesPage() {
             onClick={closePreview}
           >
             <div
-              className="glass max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl p-6"
+              className="glass max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-[2rem] p-6"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-xl font-bold">{previewFile.name}</h2>
+              <div className="mb-5 flex items-center justify-between border-b border-border/60 pb-5">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">{previewFile.name}</h2>
+                    <p className="mt-1 text-sm opacity-60">{previewFile.mime_type || "Unknown file type"}</p>
+                  </div>
+                </div>
                 <div className="flex gap-2">
                   <button
                     className="rounded-xl border border-border bg-card px-4 py-2 text-sm transition hover:bg-accent/10"
