@@ -99,7 +99,7 @@ export default function MailPage() {
   useEffect(() => {
     api<MailConfig>("/mail/config")
       .then(setConfig)
-      .catch((err) => setStatusMsg(err.message || "Failed to load mail config"));
+      .catch((err) => setStatusMsg(err.message || "Mailconfig laden mislukt"));
   }, []);
 
   useEffect(() => {
@@ -132,12 +132,12 @@ export default function MailPage() {
         body: JSON.stringify({ ...config, password, email_signature: emailSignature }),
       });
       setPassword("");
-      setStatusMsg("Mailbox config saved");
+      setStatusMsg("Mailboxconfig opgeslagen");
       const fresh = await api<MailConfig>("/mail/config");
       setConfig(fresh);
       setEmailSignature(fresh.email_signature || DEFAULT_EMAIL_SIGNATURE);
     } catch (err) {
-      setStatusMsg(err instanceof Error ? err.message : "Save failed");
+      setStatusMsg(err instanceof Error ? err.message : "Opslaan mislukt");
     }
   }
 
@@ -147,7 +147,7 @@ export default function MailPage() {
       const res = await api<{ message: string }>("/mail/test", { method: "POST" });
       setStatusMsg(res.message);
     } catch (err) {
-      setStatusMsg(err instanceof Error ? err.message : "Test failed");
+      setStatusMsg(err instanceof Error ? err.message : "Test mislukt");
     }
   }
 
@@ -160,7 +160,7 @@ export default function MailPage() {
       setMessages(res.messages || []);
       setTotalMessages(res.total || 0);
     } catch (err) {
-      setStatusMsg(err instanceof Error ? err.message : "Inbox load failed");
+      setStatusMsg(err instanceof Error ? err.message : "Inbox laden mislukt");
     }
     setLoadingInbox(false);
   }
@@ -174,7 +174,7 @@ export default function MailPage() {
       setTotalSent(res.total || 0);
       if (res.folder) setSentFolderName(res.folder);
     } catch (err) {
-      setStatusMsg(err instanceof Error ? err.message : "Sent load failed");
+      setStatusMsg(err instanceof Error ? err.message : "Verzonden map laden mislukt");
     }
     setLoadingSent(false);
   }
@@ -248,7 +248,7 @@ export default function MailPage() {
       setShowReply(false);
       setReplyBody("");
     } catch (err) {
-      setStatusMsg(err instanceof Error ? err.message : "Failed to load message");
+      setStatusMsg(err instanceof Error ? err.message : "Bericht laden mislukt");
     }
     setLoadingDetail(false);
   }
@@ -272,7 +272,7 @@ export default function MailPage() {
       setTo(""); setSubject(""); setBody("");
       setShowCompose(false);
     } catch (err) {
-      setStatusMsg(err instanceof Error ? err.message : "Send failed");
+      setStatusMsg(err instanceof Error ? err.message : "Verzenden mislukt");
     }
   }
 
@@ -296,12 +296,12 @@ export default function MailPage() {
       setReplyBody("");
       setShowReply(false);
     } catch (err) {
-      setStatusMsg(err instanceof Error ? err.message : "Reply failed");
+      setStatusMsg(err instanceof Error ? err.message : "Antwoord verzenden mislukt");
     }
   }
 
   async function deleteMessage(messageId: string, folder: string) {
-    if (!confirm("Delete this email permanently?")) return;
+    if (!confirm("Dit e-mailbericht permanent verwijderen?")) return;
     setStatusMsg("");
     try {
       await api<{ message: string }>(`/mail/message/${messageId}?folder=${encodeURIComponent(folder)}`, { method: "DELETE" });
@@ -311,9 +311,9 @@ export default function MailPage() {
         setSentMessages((prev) => prev.filter((m) => m.id !== messageId));
       }
       if (selectedMessage?.id === messageId) closeMessage();
-      setStatusMsg("Email deleted");
+      setStatusMsg("E-mail verwijderd");
     } catch (err) {
-      setStatusMsg(err instanceof Error ? err.message : "Delete failed");
+      setStatusMsg(err instanceof Error ? err.message : "Verwijderen mislukt");
     }
   }
 
@@ -324,14 +324,14 @@ export default function MailPage() {
       onChange={(e) => onChange(e.target.value as SortOrder)}
       className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
     >
-      <option value="newest">Newest first</option>
-      <option value="oldest">Oldest first</option>
+      <option value="newest">Nieuwste eerst</option>
+      <option value="oldest">Oudste eerst</option>
       <option value="subject">Subject A–Z</option>
-      <option value="sender">{isSent ? "Recipient A–Z" : "Sender A–Z"}</option>
+      <option value="sender">{isSent ? "Ontvanger A–Z" : "Afzender A–Z"}</option>
     </select>
   );
 
-  const folderLabel = activeFolder === "inbox" ? "Inbox" : "Sent";
+  const folderLabel = activeFolder === "inbox" ? "Inbox" : "Verzonden";
   const currentLoad = activeFolder === "inbox" ? loadingInbox : loadingSent;
   const visibleList = activeFolder === "inbox" ? visibleInbox : visibleSent;
 
@@ -347,18 +347,18 @@ export default function MailPage() {
               className="flex items-center gap-2 rounded-xl bg-accent/80 px-4 py-2 text-white transition hover:bg-accent"
             >
               <span>✉️</span>
-              <span className="hidden sm:inline">New Email</span>
+              <span className="hidden sm:inline">Nieuwe e-mail</span>
             </button>
             <button
               onClick={refreshCurrentFolder}
               className="rounded-xl border border-border px-4 py-2 transition hover:bg-card/70"
             >
-              Refresh
+              Verversen
             </button>
             <button
               onClick={() => setShowSettings(true)}
               className="rounded-xl border border-border px-4 py-2 transition hover:bg-card/70"
-              title="Mailbox settings"
+              title="Mailboxinstellingen"
             >
               ⚙️
             </button>
@@ -377,7 +377,7 @@ export default function MailPage() {
         <div className="flex flex-1 gap-4">
           {/* Sidebar */}
           <aside className="glass flex w-44 shrink-0 flex-col gap-1 rounded-2xl p-3">
-            <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide opacity-50">Folders</p>
+            <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide opacity-50">Mappen</p>
             <button
               onClick={() => { setActiveFolder("inbox"); if (config?.has_password) loadInbox(); }}
               className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
@@ -395,7 +395,7 @@ export default function MailPage() {
                 activeFolder === "sent" ? "bg-accent/20 font-medium" : "hover:bg-card/60"
               }`}
             >
-              <span>📤 Sent</span>
+              <span>📤 Verzonden</span>
               {totalSent > 0 && (
                 <span className="rounded-full bg-accent/30 px-2 py-0.5 text-xs">{totalSent}</span>
               )}
@@ -407,17 +407,17 @@ export default function MailPage() {
             {/* Stats row */}
             <div className="grid grid-cols-3 gap-3 text-sm">
               <div className="rounded-xl border border-border bg-card/30 p-3">
-                <p className="text-xs opacity-60">On this page</p>
+                <p className="text-xs opacity-60">Op deze pagina</p>
                 <p className="mt-1 text-xl font-semibold">{visibleList.length}</p>
               </div>
               <div className="rounded-xl border border-border bg-card/30 p-3">
-                <p className="text-xs opacity-60">Total in {folderLabel}</p>
+                <p className="text-xs opacity-60">Totaal in {folderLabel}</p>
                 <p className="mt-1 text-xl font-semibold">
                   {activeFolder === "inbox" ? totalMessages : totalSent}
                 </p>
               </div>
               <div className="rounded-xl border border-border bg-card/30 p-3">
-                <p className="text-xs opacity-60">After filters</p>
+                <p className="text-xs opacity-60">Na filters</p>
                 <p className="mt-1 text-xl font-semibold">{visibleList.length}</p>
               </div>
             </div>
@@ -428,13 +428,13 @@ export default function MailPage() {
                 <input
                   value={inboxSearch}
                   onChange={(e) => setInboxSearch(e.target.value)}
-                  placeholder="Search sender, subject, snippet…"
+                  placeholder="Zoek afzender, onderwerp, snippet…"
                   className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
                 />
                 <SortSelect value={inboxSort} onChange={setInboxSort} />
                 <label className="flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm">
                   <input type="checkbox" checked={snippetOnly} onChange={(e) => setSnippetOnly(e.target.checked)} />
-                  Has snippet
+                  Met snippet
                 </label>
               </div>
             ) : (
@@ -442,7 +442,7 @@ export default function MailPage() {
                 <input
                   value={sentSearch}
                   onChange={(e) => setSentSearch(e.target.value)}
-                  placeholder="Search recipient, subject…"
+                  placeholder="Zoek ontvanger, onderwerp…"
                   className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
                 />
                 <SortSelect value={sentSort} onChange={setSentSort} isSent />
@@ -458,15 +458,15 @@ export default function MailPage() {
                   disabled={(activeFolder === "inbox" ? inboxPage : sentPage) === 0}
                   className="rounded-lg border border-border px-3 py-1 disabled:opacity-50"
                 >
-                  ← Prev
+                  ← Vorige
                 </button>
-                <span className="px-2 py-1">Page {(activeFolder === "inbox" ? inboxPage : sentPage) + 1}</span>
+                <span className="px-2 py-1">Pagina {(activeFolder === "inbox" ? inboxPage : sentPage) + 1}</span>
                 <button
                   onClick={() => activeFolder === "inbox" ? setInboxPage((p) => p + 1) : setSentPage((p) => p + 1)}
                   disabled={(activeFolder === "inbox" ? messages : sentMessages).length < 50}
                   className="rounded-lg border border-border px-3 py-1 disabled:opacity-50"
                 >
-                  Next →
+                  Volgende →
                 </button>
               </div>
             </div>
@@ -481,9 +481,9 @@ export default function MailPage() {
                     className="cursor-pointer rounded-xl border border-border p-3 transition hover:bg-accent/10"
                     onClick={() => openMessage(msg.id, folderParam)}
                   >
-                    <p className="truncate text-sm font-medium">{msg.subject || "(No subject)"}</p>
+                    <p className="truncate text-sm font-medium">{msg.subject || "(Geen onderwerp)"}</p>
                     <p className="mt-1 text-xs opacity-60">
-                      {activeFolder === "inbox" ? `From: ${msg.from}` : `To: ${msg.to}`}
+                      {activeFolder === "inbox" ? `Van: ${msg.from}` : `Aan: ${msg.to}`}
                     </p>
                     <p className="mt-0.5 text-xs opacity-40">{msg.date}</p>
                     {msg.snippet && <p className="mt-1 truncate text-xs opacity-50">{msg.snippet}</p>}
@@ -492,7 +492,7 @@ export default function MailPage() {
                         className="rounded-lg border border-border px-3 py-1 text-xs transition hover:bg-red-500/20"
                         onClick={(e) => { e.stopPropagation(); deleteMessage(msg.id, folderParam); }}
                       >
-                        Delete
+                        Verwijderen
                       </button>
                     </div>
                   </li>
@@ -500,12 +500,12 @@ export default function MailPage() {
               })}
               {currentLoad && (
                 <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm opacity-60">
-                  Loading {folderLabel.toLowerCase()}…
+                  {folderLabel.toLowerCase()} laden…
                 </li>
               )}
               {!currentLoad && visibleList.length === 0 && (
                 <li className="rounded-xl border border-dashed border-border p-6 text-center text-sm opacity-60">
-                  {config?.has_password ? `No messages in ${folderLabel}.` : "Configure your mailbox to load messages."}
+                  {config?.has_password ? `Geen berichten in ${folderLabel}.` : "Configureer je mailbox om berichten te laden."}
                 </li>
               )}
             </ul>
@@ -523,34 +523,34 @@ export default function MailPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold">New Email</h3>
+                <h3 className="text-lg font-semibold">Nieuwe e-mail</h3>
                 <button onClick={() => setShowCompose(false)} className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-card/70">✕</button>
               </div>
               <div className="space-y-3">
                 <input
                   className="w-full rounded-xl border border-border bg-transparent px-3 py-2"
-                  placeholder="To"
+                  placeholder="Aan"
                   value={to}
                   onChange={(e) => setTo(e.target.value)}
                 />
                 <input
                   className="w-full rounded-xl border border-border bg-transparent px-3 py-2"
-                  placeholder="Subject"
+                  placeholder="Onderwerp"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                 />
                 <textarea
                   className="h-48 w-full rounded-xl border border-border bg-transparent px-3 py-2"
-                  placeholder="Message"
+                  placeholder="Bericht"
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
                 />
                 <div className="flex gap-2">
                   <button className="rounded-xl bg-accent/80 px-6 py-2 text-white hover:bg-accent" onClick={sendMail}>
-                    Send
+                    Verzenden
                   </button>
                   <button className="rounded-xl border border-border px-4 py-2 hover:bg-card/70" onClick={() => { setTo(""); setSubject(""); setBody(""); }}>
-                    Clear
+                    Leegmaken
                   </button>
                 </div>
               </div>
@@ -569,13 +569,13 @@ export default function MailPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Mailbox Settings</h3>
+                <h3 className="text-lg font-semibold">Mailboxinstellingen</h3>
                 <button onClick={() => setShowSettings(false)} className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-card/70">✕</button>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
                 <input className="rounded-xl border border-border bg-transparent px-3 py-2" placeholder="Email" value={config?.email || ""} onChange={(e) => setConfig((p) => p ? { ...p, email: e.target.value } : p)} />
-                <input className="rounded-xl border border-border bg-transparent px-3 py-2" placeholder="Username" value={config?.username || ""} onChange={(e) => setConfig((p) => p ? { ...p, username: e.target.value } : p)} />
+                <input className="rounded-xl border border-border bg-transparent px-3 py-2" placeholder="Gebruikersnaam" value={config?.username || ""} onChange={(e) => setConfig((p) => p ? { ...p, username: e.target.value } : p)} />
                 <input className="rounded-xl border border-border bg-transparent px-3 py-2" placeholder="IMAP host" value={config?.imap_host || ""} onChange={(e) => setConfig((p) => p ? { ...p, imap_host: e.target.value } : p)} />
                 <input type="number" className="rounded-xl border border-border bg-transparent px-3 py-2" placeholder="IMAP port" value={config?.imap_port || 993} onChange={(e) => setConfig((p) => p ? { ...p, imap_port: Number(e.target.value) || 993 } : p)} />
                 <input className="rounded-xl border border-border bg-transparent px-3 py-2" placeholder="SMTP host" value={config?.smtp_host || ""} onChange={(e) => setConfig((p) => p ? { ...p, smtp_host: e.target.value } : p)} />
@@ -585,7 +585,7 @@ export default function MailPage() {
               <input
                 type="password"
                 className="mt-3 w-full rounded-xl border border-border bg-transparent px-3 py-2"
-                placeholder={config?.has_password ? "Leave blank to keep current password" : "Mailbox password"}
+                placeholder={config?.has_password ? "Leeg laten om huidig wachtwoord te behouden" : "Mailboxwachtwoord"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -597,19 +597,19 @@ export default function MailPage() {
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                <button className="rounded-xl bg-accent/80 px-4 py-2 text-white hover:bg-accent" onClick={saveConfig}>Save Settings</button>
-                <button className="rounded-xl border border-border px-4 py-2 hover:bg-card/70" onClick={testConnection}>Test Connection</button>
+                <button className="rounded-xl bg-accent/80 px-4 py-2 text-white hover:bg-accent" onClick={saveConfig}>Instellingen opslaan</button>
+                <button className="rounded-xl border border-border px-4 py-2 hover:bg-card/70" onClick={testConnection}>Verbinding testen</button>
               </div>
 
               <div className="mt-6 border-t border-border pt-5">
-                <h4 className="mb-2 text-sm font-semibold">Email Signature</h4>
+                <h4 className="mb-2 text-sm font-semibold">E-mailsignatuur</h4>
                 <textarea
                   className="h-36 w-full rounded-xl border border-border bg-transparent px-3 py-2 font-mono text-xs"
-                  placeholder="HTML or plain text"
+                  placeholder="HTML of platte tekst"
                   value={emailSignature}
                   onChange={(e) => setEmailSignature(e.target.value)}
                 />
-                <p className="mt-1 text-xs opacity-50">Auto-appended to every sent message.</p>
+                <p className="mt-1 text-xs opacity-50">Wordt automatisch toegevoegd aan elk verzonden bericht.</p>
               </div>
             </div>
           </div>
@@ -627,22 +627,22 @@ export default function MailPage() {
             >
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-2xl font-bold">{selectedMessage.subject || "(No subject)"}</h2>
-                  <p className="mt-2 text-sm opacity-70">From: <span className="font-medium">{selectedMessage.from}</span></p>
-                  <p className="text-sm opacity-70">To: <span className="font-medium">{selectedMessage.to}</span></p>
+                  <h2 className="truncate text-2xl font-bold">{selectedMessage.subject || "(Geen onderwerp)"}</h2>
+                  <p className="mt-2 text-sm opacity-70">Van: <span className="font-medium">{selectedMessage.from}</span></p>
+                  <p className="text-sm opacity-70">Aan: <span className="font-medium">{selectedMessage.to}</span></p>
                   <p className="mt-1 text-xs opacity-50">{selectedMessage.date}</p>
                 </div>
                 <div className="flex shrink-0 gap-2">
                   {activeFolder === "inbox" && (
                     <button className="rounded-xl border border-border bg-card px-4 py-2 text-sm hover:bg-accent/20" onClick={() => setShowReply(!showReply)}>
-                      Reply
+                      Antwoorden
                     </button>
                   )}
                   <button className="rounded-xl border border-border bg-card px-4 py-2 text-sm hover:bg-red-500/20" onClick={() => deleteMessage(selectedMessage.id, openedFromFolder)}>
-                    Delete
+                    Verwijderen
                   </button>
                   <button className="rounded-xl border border-border bg-card px-4 py-2 text-sm hover:bg-accent/10" onClick={closeMessage}>
-                    Close
+                    Sluiten
                   </button>
                 </div>
               </div>
@@ -653,27 +653,27 @@ export default function MailPage() {
                     src={emailHtmlUrl}
                     className="h-[600px] w-full border-0"
                     sandbox="allow-same-origin allow-popups"
-                    title="Email content"
+                    title="E-mailinhoud"
                   />
                 ) : selectedMessage.text_body ? (
                   <pre className="max-h-[600px] overflow-auto whitespace-pre-wrap p-4 font-sans text-sm">{selectedMessage.text_body}</pre>
                 ) : (
-                  <p className="p-4 text-sm opacity-60">No content</p>
+                  <p className="p-4 text-sm opacity-60">Geen inhoud</p>
                 )}
               </div>
 
               {showReply && (
                 <div className="mt-6 border-t border-border pt-5">
-                  <h4 className="mb-3 font-medium">Reply to {selectedMessage.from}</h4>
+                  <h4 className="mb-3 font-medium">Antwoorden aan {selectedMessage.from}</h4>
                   <textarea
                     className="h-40 w-full rounded-xl border border-border bg-transparent px-3 py-2"
-                    placeholder="Type your reply…"
+                    placeholder="Typ je antwoord…"
                     value={replyBody}
                     onChange={(e) => setReplyBody(e.target.value)}
                   />
                   <div className="mt-3 flex gap-2">
-                    <button className="rounded-xl bg-accent/80 px-6 py-2 text-white hover:bg-accent" onClick={replyMail}>Send Reply</button>
-                    <button className="rounded-xl border border-border px-4 py-2 hover:bg-card/70" onClick={() => { setShowReply(false); setReplyBody(""); }}>Cancel</button>
+                    <button className="rounded-xl bg-accent/80 px-6 py-2 text-white hover:bg-accent" onClick={replyMail}>Antwoord verzenden</button>
+                    <button className="rounded-xl border border-border px-4 py-2 hover:bg-card/70" onClick={() => { setShowReply(false); setReplyBody(""); }}>Annuleren</button>
                   </div>
                 </div>
               )}
@@ -685,7 +685,7 @@ export default function MailPage() {
         {loadingDetail && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
             <div className="glass rounded-2xl p-6">
-              <p className="text-sm">Loading message…</p>
+              <p className="text-sm">Bericht laden…</p>
             </div>
           </div>
         )}

@@ -262,6 +262,8 @@ def list_shopify_orders(
                     "currency": order.get("currency") or "",
                     "total_price": order.get("total_price") or "0",
                     "created_at": order.get("created_at") or "",
+                    "tags": order.get("tags") or "",
+                    "cancelled_at": order.get("cancelled_at") or "",
                 }
             )
 
@@ -315,7 +317,34 @@ def get_shopify_order(order_id: str, current_user: User = Depends(get_current_us
             "total_tax": order.get("total_tax") or "0",
             "total_discounts": order.get("total_discounts") or "0",
             "created_at": order.get("created_at") or "",
+            "processed_at": order.get("processed_at") or "",
             "note": order.get("note") or "",
+            "tags": order.get("tags") or "",
+            "order_status_url": order.get("order_status_url") or "",
+            "source_name": order.get("source_name") or "",
+            "cancelled_at": order.get("cancelled_at") or "",
+            "cancel_reason": order.get("cancel_reason") or "",
+            "discount_codes": [
+                code.get("code")
+                for code in (order.get("discount_codes") or [])
+                if code.get("code")
+            ],
+            "payment_gateway_names": order.get("payment_gateway_names") or [],
+            "shipping_lines": [
+                {
+                    "title": line.get("title") or "",
+                    "code": line.get("code") or "",
+                    "price": line.get("price") or "0",
+                }
+                for line in (order.get("shipping_lines") or [])
+            ],
+            "note_attributes": [
+                {
+                    "name": attr.get("name") or "",
+                    "value": attr.get("value") or "",
+                }
+                for attr in (order.get("note_attributes") or [])
+            ],
             "shipping_address": _address_lines(shipping),
             "billing_address": _address_lines(billing),
             "line_items": [
@@ -335,3 +364,38 @@ def get_shopify_order(order_id: str, current_user: User = Depends(get_current_us
         raise
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to load Shopify order: {exc}") from exc
+
+
+@router.get("/orders/{order_id}/events")
+def get_shopify_order_events(order_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    raw = _get_raw_config(db, str(current_user.id))
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shopify config not found")
+
+    try:
+        payload = _shopify_request(db, str(current_user.id), raw, f"orders/{order_id}/events.json", params={"limit": 100})
+        events = payload.get("events", []) or []
+        mapped = []
+        for event in events:
+            message_parts = [
+                event.get("message"),
+                event.get("verb"),
+                event.get("body"),
+            ]
+            message = " - ".join([part for part in message_parts if part])
+            mapped.append(
+                {
+                    "id": str(event.get("id", "")),
+                    "created_at": event.get("created_at") or "",
+                    "author": event.get("author") or event.get("app_title") or "Shopify",
+                    "type": event.get("verb") or event.get("subject_type") or "event",
+                    "message": message or "Geen extra details",
+                }
+            )
+
+        mapped.sort(key=lambda row: row.get("created_at") or "", reverse=True)
+        return {"events": mapped, "count": len(mapped)}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to load Shopify events: {exc}") from exc

@@ -185,7 +185,7 @@ export default function SettingsPage() {
       setInfo(data);
       setNewPath(data.storage.current_path);
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Failed to load system info");
+      setStatus(err instanceof Error ? err.message : "Systeeminfo laden mislukt");
     }
     setLoading(false);
   }
@@ -226,9 +226,9 @@ export default function SettingsPage() {
         body: JSON.stringify({ ...updateConfig, selected_channel: updateChannel }),
       });
       setUpdateConfig(saved);
-      setStatus("Update channel settings saved");
+      setStatus("Updatekanaal-instellingen opgeslagen");
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Failed to save update settings");
+      setStatus(err instanceof Error ? err.message : "Update-instellingen opslaan mislukt");
     }
     setUpdateBusy(false);
   }
@@ -241,11 +241,11 @@ export default function SettingsPage() {
         method: "POST",
         body: JSON.stringify({ channel: updateChannel }),
       });
-      setStatus(`Latest ${updateChannel} update fetched: ${fetched.name}`);
+      setStatus(`Laatste ${updateChannel}-update opgehaald: ${fetched.name}`);
       await loadUpdateData();
       setSelectedPackage(fetched.name);
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Failed to fetch latest update");
+      setStatus(err instanceof Error ? err.message : "Laatste update ophalen mislukt");
     }
     setFetchBusy(false);
   }
@@ -263,11 +263,11 @@ export default function SettingsPage() {
         body: formData,
       });
 
-      setStatus("Update package uploaded");
+      setStatus("Updatepakket geüpload");
       setUpdateFile(null);
       await loadUpdateData();
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Update package upload failed");
+      setStatus(err instanceof Error ? err.message : "Uploaden updatepakket mislukt");
     }
     setUpdateBusy(false);
   }
@@ -289,10 +289,10 @@ export default function SettingsPage() {
         }),
       });
       setUpdateStatus(result);
-      setStatus(result.state === "success" ? "Update completed" : "Update failed");
+      setStatus(result.state === "success" ? "Update voltooid" : "Update mislukt");
       await loadUpdateData();
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Update failed");
+      setStatus(err instanceof Error ? err.message : "Update mislukt");
       await loadUpdateData();
     }
     setUpdateBusy(false);
@@ -317,7 +317,7 @@ export default function SettingsPage() {
       const result = await api<{ success: boolean; message: string; store_domain: string }>("/shopify/test");
       setShopifyTestStatus(result.message + ` (${result.store_domain})`);
     } catch (err) {
-      setShopifyTestStatus(err instanceof Error ? err.message : "Connection test failed");
+      setShopifyTestStatus(err instanceof Error ? err.message : "Verbindingstest mislukt");
     }
     setTestShopifyBusy(false);
   }
@@ -355,7 +355,7 @@ export default function SettingsPage() {
       setShopifyClientSecret("");
       await loadShopifyConfig();
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Failed to save Shopify config");
+      setStatus(err instanceof Error ? err.message : "Shopify-config opslaan mislukt");
     }
     setShopifyBusy(false);
   }
@@ -392,7 +392,7 @@ export default function SettingsPage() {
       setGelatoApiKey("");
       await loadGelatoConfig();
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Failed to save Gelato config");
+      setStatus(err instanceof Error ? err.message : "Gelato-config opslaan mislukt");
     }
     setGelatoBusy(false);
   }
@@ -407,7 +407,7 @@ export default function SettingsPage() {
       setStatus(response.message);
       await loadInfo();
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Failed to update storage path");
+      setStatus(err instanceof Error ? err.message : "Opslagpad bijwerken mislukt");
     }
   }
 
@@ -420,12 +420,12 @@ export default function SettingsPage() {
   const visibleSectionCount = useMemo(() => {
     const query = sectionSearch.trim().toLowerCase();
     const sections = [
-      { key: "core", title: "System Information" },
-      { key: "storage", title: "Current Storage" },
-      { key: "storage", title: "Available Mount Points" },
-      { key: "integrations", title: "Shopify Integration" },
-      { key: "integrations", title: "Gelato Integration" },
-      { key: "updates", title: "System Updates" },
+      { key: "core", title: "Systeeminformatie" },
+      { key: "storage", title: "Huidige opslag" },
+      { key: "storage", title: "Beschikbare mount points" },
+      { key: "integrations", title: "Shopify integratie" },
+      { key: "integrations", title: "Gelato integratie" },
+      { key: "updates", title: "Systeemupdates" },
     ];
 
     return sections.filter((section) => {
@@ -460,11 +460,11 @@ export default function SettingsPage() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/40 px-3 py-1 text-xs font-medium opacity-80">
                 <WandSparkles className="h-3.5 w-3.5 text-accent" />
-                Refined system control center
+                Verfijnd systeemcontrolecentrum
               </div>
-              <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">System Settings</h1>
+              <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">Systeeminstellingen</h1>
               <p className="mt-3 max-w-3xl text-sm opacity-70 sm:text-base">
-                Manage infrastructure, storage, integrations, and update workflows from a clearer professional settings experience.
+                Beheer infrastructuur, opslag, integraties en updateworkflows vanuit een heldere professionele instellingenervaring.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <button
@@ -479,7 +479,7 @@ export default function SettingsPage() {
                   className="inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
                 >
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                  {loading ? "Refreshing..." : "Refresh settings"}
+                  {loading ? "Verversen..." : "Instellingen verversen"}
                 </button>
                 <div className="inline-flex items-center gap-2 rounded-2xl border border-border px-4 py-2.5 text-sm opacity-75">
                   <Cog className="h-4 w-4" />
@@ -489,10 +489,10 @@ export default function SettingsPage() {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <StatCard label="Visible" value={visibleSectionCount} hint="Sections matching current filters" />
-              <StatCard label="Mounts" value={info?.available_mounts?.length || 0} hint="Detected storage targets" />
-              <StatCard label="Integrations" value={configuredIntegrations} hint="Connected external services" />
-              <StatCard label="Storage" value={`${activeStorageUsage.toFixed(0)}%`} hint="Current disk usage" />
+              <StatCard label="Zichtbaar" value={visibleSectionCount} hint="Secties die overeenkomen met huidige filters" />
+              <StatCard label="Mounts" value={info?.available_mounts?.length || 0} hint="Gedetecteerde opslagdoelen" />
+              <StatCard label="Integraties" value={configuredIntegrations} hint="Gekoppelde externe diensten" />
+              <StatCard label="Opslag" value={`${activeStorageUsage.toFixed(0)}%`} hint="Huidig schijfgebruik" />
             </div>
           </div>
         </section>
@@ -500,17 +500,17 @@ export default function SettingsPage() {
         <section className="glass sticky top-3 z-20 rounded-[1.75rem] p-4 backdrop-blur">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold">Find the right setting faster</p>
-              <p className="text-xs opacity-55">Filter by area or search by section name.</p>
+              <p className="text-sm font-semibold">Vind sneller de juiste instelling</p>
+              <p className="text-xs opacity-55">Filter op onderdeel of zoek op sectienaam.</p>
             </div>
-            <div className="rounded-full bg-accent/15 px-3 py-1 text-xs font-medium text-accent">Professional view</div>
+            <div className="rounded-full bg-accent/15 px-3 py-1 text-xs font-medium text-accent">Professionele weergave</div>
           </div>
           <div className="grid gap-2 md:grid-cols-[1fr_auto]">
             <input
               type="text"
               value={sectionSearch}
               onChange={(e) => setSectionSearch(e.target.value)}
-              placeholder="Find section (system, storage, integration, updates)"
+              placeholder="Zoek sectie (systeem, opslag, integratie, updates)"
               className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
             />
             <select
@@ -518,10 +518,10 @@ export default function SettingsPage() {
               onChange={(e) => setSectionFilter(e.target.value as "all" | "core" | "storage" | "integrations" | "updates")}
               className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
             >
-              <option value="all">All sections</option>
-              <option value="core">Core</option>
-              <option value="storage">Storage</option>
-              <option value="integrations">Integrations</option>
+              <option value="all">Alle secties</option>
+              <option value="core">Kern</option>
+              <option value="storage">Opslag</option>
+              <option value="integrations">Integraties</option>
               <option value="updates">Updates</option>
             </select>
           </div>
@@ -533,16 +533,16 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {shouldShowSection("core", "System Information") && (
+        {shouldShowSection("core", "Systeeminformatie") && (
         <SectionShell
           icon={<Server className="h-5 w-5" />}
-          eyebrow="Core"
-          title="System Information"
-          description="A concise overview of the environment powering this cloud instance."
+          eyebrow="Kern"
+          title="Systeeminformatie"
+          description="Een beknopt overzicht van de omgeving die deze cloudinstantie aandrijft."
         >
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-xl border border-border bg-card/30 p-3">
-              <span className="text-xs font-medium opacity-70">Hostname</span>
+              <span className="text-xs font-medium opacity-70">Hostnaam</span>
               <p className="mt-1 font-mono text-sm">{info?.hostname || "-"}</p>
             </div>
             <div className="rounded-xl border border-border bg-card/30 p-3">
@@ -550,27 +550,27 @@ export default function SettingsPage() {
               <p className="mt-1 font-mono text-sm">{info?.platform || "-"}</p>
             </div>
             <div className="rounded-xl border border-border bg-card/30 p-3">
-              <span className="text-xs font-medium opacity-70">CPU Cores</span>
+              <span className="text-xs font-medium opacity-70">CPU-kernen</span>
               <p className="mt-1 font-mono text-sm">{info?.cpu_cores || 0}</p>
             </div>
             <div className="rounded-xl border border-border bg-card/30 p-3">
-              <span className="text-xs font-medium opacity-70">Python Version</span>
+              <span className="text-xs font-medium opacity-70">Python-versie</span>
               <p className="mt-1 font-mono text-sm">{info?.python_version || "-"}</p>
             </div>
           </div>
         </SectionShell>
         )}
 
-        {shouldShowSection("storage", "Current Storage") && (
+        {shouldShowSection("storage", "Huidige opslag") && (
         <SectionShell
           icon={<HardDrive className="h-5 w-5" />}
-          eyebrow="Storage"
-          title="Current Storage"
-          description="Monitor the active storage target and switch the main cloud file location safely."
+          eyebrow="Opslag"
+          title="Huidige opslag"
+          description="Volg het actieve opslagdoel en wijzig veilig de hoofdlocatie voor cloudbestanden."
           aside={
             <div className="rounded-2xl border border-border/70 bg-card/40 px-4 py-3 text-right">
-              <p className="text-xs uppercase tracking-[0.18em] opacity-45">Usage</p>
-              <p className="mt-1 text-lg font-semibold">{(info?.storage.free_gb ?? 0).toFixed(2)} GB free</p>
+              <p className="text-xs uppercase tracking-[0.18em] opacity-45">Gebruik</p>
+              <p className="mt-1 text-lg font-semibold">{(info?.storage.free_gb ?? 0).toFixed(2)} GB vrij</p>
             </div>
           }
         >
@@ -579,12 +579,12 @@ export default function SettingsPage() {
               <div>
                 <p className="text-sm font-medium">{info?.storage.current_path || "-"}</p>
                 <p className="mt-1 text-xs opacity-60">
-                  {info?.storage.used_gb.toFixed(2)} GB used of {info?.storage.total_gb.toFixed(2)} GB (
+                  {info?.storage.used_gb.toFixed(2)} GB gebruikt van {info?.storage.total_gb.toFixed(2)} GB (
                   {info?.storage.percent_used.toFixed(1)}%)
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm font-medium">{info?.storage.free_gb.toFixed(2)} GB free</p>
+                <p className="text-sm font-medium">{info?.storage.free_gb.toFixed(2)} GB vrij</p>
               </div>
             </div>
             <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-card/50">
@@ -596,33 +596,33 @@ export default function SettingsPage() {
           </div>
 
           <div className="mt-5 rounded-[1.5rem] border border-border/70 bg-card/25 p-4">
-            <label className="block text-sm font-medium">Change Storage Path</label>
-            <p className="mt-1 text-xs opacity-60">Select a new path or mount point for storing cloud files</p>
+            <label className="block text-sm font-medium">Opslagpad wijzigen</label>
+            <p className="mt-1 text-xs opacity-60">Kies een nieuw pad of koppelpunt voor cloudbestanden</p>
             <div className="mt-2 flex gap-2">
               <input
                 type="text"
                 className="flex-1 rounded-xl border border-border bg-card px-3 py-2 font-mono text-sm"
                 value={newPath}
                 onChange={(e) => setNewPath(e.target.value)}
-                placeholder="/path/to/storage"
+                placeholder="/pad/naar/opslag"
               />
               <button
                 onClick={() => updateStoragePath(newPath)}
                 className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
               >
-                Update Path
+                Pad bijwerken
               </button>
             </div>
           </div>
         </SectionShell>
         )}
 
-        {shouldShowSection("storage", "Available Mount Points") && (
+        {shouldShowSection("storage", "Beschikbare mount points") && (
         <SectionShell
           icon={<Boxes className="h-5 w-5" />}
-          eyebrow="Storage"
-          title="Available Mount Points"
-          description="Review detected disks and quickly switch to another mount when needed."
+          eyebrow="Opslag"
+          title="Beschikbare mount points"
+          description="Bekijk gedetecteerde schijven en schakel snel naar een andere mount wanneer nodig."
         >
           <div className="space-y-3">
             {info?.available_mounts && info.available_mounts.length > 0 ? (
@@ -636,7 +636,7 @@ export default function SettingsPage() {
                           <p className="font-mono text-sm font-medium">{mount.path}</p>
                           {mount.path === info.storage.current_path && (
                             <span className="rounded-md bg-accent/20 px-2 py-0.5 text-xs font-medium text-accent">
-                              Active
+                              Actief
                             </span>
                           )}
                         </div>
@@ -644,11 +644,11 @@ export default function SettingsPage() {
                           {mount.device} ({mount.fstype})
                         </p>
                         <p className="mt-1 text-xs opacity-60">
-                          {mount.used_gb.toFixed(1)} GB / {mount.total_gb.toFixed(1)} GB used ({percent.toFixed(1)}%)
+                          {mount.used_gb.toFixed(1)} GB / {mount.total_gb.toFixed(1)} GB gebruikt ({percent.toFixed(1)}%)
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-medium">{mount.free_gb.toFixed(1)} GB free</p>
+                        <p className="text-sm font-medium">{mount.free_gb.toFixed(1)} GB vrij</p>
                         {mount.path !== info.storage.current_path && (
                           <button
                             onClick={() => {
@@ -657,7 +657,7 @@ export default function SettingsPage() {
                             }}
                             className="mt-2 rounded-lg border border-border bg-card px-3 py-1 text-xs transition hover:bg-accent/10"
                           >
-                            Use this disk
+                            Deze schijf gebruiken
                           </button>
                         )}
                       </div>
@@ -673,39 +673,39 @@ export default function SettingsPage() {
               })
             ) : (
               <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm opacity-60">
-                No mount points detected (may require Linux system with /proc/mounts)
+                Geen mount points gedetecteerd (mogelijk Linux-systeem met /proc/mounts vereist)
               </div>
             )}
           </div>
         </SectionShell>
         )}
 
-        {shouldShowSection("integrations", "Shopify Integration") && (
+        {shouldShowSection("integrations", "Shopify integratie") && (
         <SectionShell
           icon={<Store className="h-5 w-5" />}
-          eyebrow="Integrations"
-          title="Shopify Integration"
-          description="Connect Shopify to surface order data inside the cloud dashboard and fulfillment flow."
+          eyebrow="Integraties"
+          title="Shopify integratie"
+          description="Koppel Shopify om besteldata in het cloud-dashboard en de afhandelingsflow te tonen."
           aside={
             <div className={`rounded-full px-3 py-1 text-xs font-medium ${shopifyHasToken ? "bg-green-500/15 text-green-600 dark:text-green-300" : "bg-card/40"}`}>
-              {shopifyHasToken ? "Configured" : "Needs token"}
+              {shopifyHasToken ? "Geconfigureerd" : "Token vereist"}
             </div>
           }
         >
           <p className="mt-2 text-xs opacity-70">
-            Gebruik hier je <strong>.myshopify.com</strong> admin domein (niet je storefront domein zoals thokan.be).
+            Gebruik hier je <strong>.myshopify.com</strong> admin-domein (niet je webshopdomein zoals thokan.be).
           </p>
           <p className="mt-1 text-xs opacity-70">
-            Access token: Shopify Admin → Apps and sales channels → Develop apps → jouw app → Configuration (scope: read_orders)
-            → Install app → API credentials → Admin API access token.
+            Toegangstoken: Shopify Admin → Apps and sales channels → Develop apps → jouw app → Configuration (scope: read_orders)
+            → App installeren → API credentials → Admin API-access token.
           </p>
           <p className="mt-1 text-xs opacity-70">
-            Client ID/Secret kun je optioneel bewaren voor referentie, maar voor orders is altijd een Admin API access token nodig.
+            Client ID/Secret kun je optioneel bewaren als referentie, maar voor bestellingen is altijd een Admin API-access token nodig.
           </p>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium">Store Domain</label>
+              <label className="block text-sm font-medium">Store-domein</label>
               <input
                 type="text"
                 className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
@@ -715,7 +715,7 @@ export default function SettingsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium">API Version</label>
+              <label className="block text-sm font-medium">API-versie</label>
               <input
                 type="text"
                 className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
@@ -727,20 +727,20 @@ export default function SettingsPage() {
           </div>
 
           <div className="mt-3">
-            <label className="block text-sm font-medium">Admin API Access Token</label>
+              <label className="block text-sm font-medium">Admin API access token</label>
             <input
               type="password"
               className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-              placeholder={shopifyHasToken ? "Token already saved (leave empty to keep)" : "shpat_..."}
+              placeholder={shopifyHasToken ? "Token al opgeslagen (leeg laten om te behouden)" : "shpat_..."}
               value={shopifyAccessToken}
               onChange={(e) => setShopifyAccessToken(e.target.value)}
             />
-            {shopifyHasToken && <p className="mt-1 text-xs opacity-60">A token is already stored securely.</p>}
+            {shopifyHasToken && <p className="mt-1 text-xs opacity-60">Er is al een token veilig opgeslagen.</p>}
           </div>
 
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium">Client ID (optional)</label>
+              <label className="block text-sm font-medium">Client ID (optioneel)</label>
               <input
                 type="text"
                 className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
@@ -750,18 +750,18 @@ export default function SettingsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium">Client Secret (optional)</label>
+              <label className="block text-sm font-medium">Clientgeheim (optioneel)</label>
               <input
                 type="password"
                 className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-                placeholder={shopifyHasClientCredentials ? "Already stored (leave empty to keep)" : "Shopify app client secret"}
+                placeholder={shopifyHasClientCredentials ? "Al opgeslagen (leeg laten om te behouden)" : "Shopify app client secret"}
                 value={shopifyClientSecret}
                 onChange={(e) => setShopifyClientSecret(e.target.value)}
               />
             </div>
           </div>
           {shopifyHasClientCredentials && (
-            <p className="mt-1 text-xs opacity-60">Client credentials are already stored securely.</p>
+            <p className="mt-1 text-xs opacity-60">Clientgegevens zijn al veilig opgeslagen.</p>
           )}
 
           <div className="mt-4 flex gap-2">
@@ -770,14 +770,14 @@ export default function SettingsPage() {
               disabled={!shopifyDomain || !shopifyApiVersion || shopifyBusy}
               className="rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
             >
-              {shopifyBusy ? "Saving..." : "Save Shopify Config"}
+              {shopifyBusy ? "Opslaan..." : "Shopify-config opslaan"}
             </button>
             <button
               onClick={testShopifyConnection}
               disabled={!shopifyDomain || testShopifyBusy || !shopifyHasToken}
               className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium transition hover:bg-accent/10 disabled:opacity-50"
             >
-              {testShopifyBusy ? "Testing..." : "Test Connection"}
+              {testShopifyBusy ? "Testen..." : "Verbinding testen"}
             </button>
           </div>
           {shopifyTestStatus && (
@@ -788,25 +788,25 @@ export default function SettingsPage() {
         </SectionShell>
         )}
 
-        {shouldShowSection("integrations", "Gelato Integration") && (
+        {shouldShowSection("integrations", "Gelato integratie") && (
         <SectionShell
           icon={<ShoppingBag className="h-5 w-5" />}
-          eyebrow="Integrations"
-          title="Gelato Integration"
-          description="Configure Gelato for product mapping, pricing, and order placement from Shopify orders."
+          eyebrow="Integraties"
+          title="Gelato integratie"
+          description="Configureer Gelato voor productmapping, prijzen en bestelplaatsing vanuit Shopify-bestellingen."
           aside={
             <div className={`rounded-full px-3 py-1 text-xs font-medium ${gelatoHasKey ? "bg-green-500/15 text-green-600 dark:text-green-300" : "bg-card/40"}`}>
-              {gelatoHasKey ? "Connected" : "Needs API key"}
+              {gelatoHasKey ? "Verbonden" : "API-sleutel vereist"}
             </div>
           }
         >
           <p className="mt-1 text-sm opacity-60">
-            Configure Gelato API for catalog discovery, pricing and order placement from Shopify orders.
+            Configureer de Gelato API voor catalogusdetectie, prijzen en bestelplaatsing vanuit Shopify-bestellingen.
           </p>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium">Base URL</label>
+              <label className="block text-sm font-medium">Basis-URL</label>
               <input
                 type="text"
                 className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
@@ -816,11 +816,11 @@ export default function SettingsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium">API Key</label>
+              <label className="block text-sm font-medium">API-sleutel</label>
               <input
                 type="password"
                 className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
-                placeholder={gelatoHasKey ? "API key already saved (leave empty to keep)" : "Gelato API key"}
+                placeholder={gelatoHasKey ? "API-sleutel al opgeslagen (leeg laten om te behouden)" : "Gelato API-sleutel"}
                 value={gelatoApiKey}
                 onChange={(e) => setGelatoApiKey(e.target.value)}
               />
@@ -828,8 +828,8 @@ export default function SettingsPage() {
           </div>
 
           <div className="mt-3">
-            <label className="block text-sm font-medium">SKU mapping (Shopify SKU → Gelato productUid)</label>
-            <p className="mt-1 text-xs opacity-60">Example: {`{ "TSHIRT-BLACK-M": "gelato-product-uid" }`}</p>
+            <label className="block text-sm font-medium">SKU-mapping (Shopify SKU → Gelato productUid)</label>
+            <p className="mt-1 text-xs opacity-60">Voorbeeld: {`{ "TSHIRT-BLACK-M": "gelato-product-uid" }`}</p>
             <textarea
               className="mt-2 h-40 w-full rounded-xl border border-border bg-card px-3 py-2 font-mono text-xs"
               value={gelatoSkuMapText}
@@ -843,29 +843,29 @@ export default function SettingsPage() {
               disabled={!gelatoBaseUrl || gelatoBusy}
               className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
             >
-              {gelatoBusy ? "Saving..." : "Save Gelato Config"}
+              {gelatoBusy ? "Opslaan..." : "Gelato-config opslaan"}
             </button>
           </div>
         </SectionShell>
         )}
 
-        {shouldShowSection("updates", "System Updates") && (
+        {shouldShowSection("updates", "Systeemupdates") && (
         <SectionShell
           icon={<PackageCheck className="h-5 w-5" />}
           eyebrow="Updates"
-          title="System Updates"
-          description="Run stable or beta updates from your own source with clearer controls for fetch, upload, and apply flows."
+          title="Systeemupdates"
+          description="Voer stable- of beta-updates uit vanuit je eigen bron met heldere controles voor ophalen, uploaden en toepassen."
           aside={
             <div className={`rounded-full px-3 py-1 text-xs font-medium ${getUpdateStateTone(updateStatus?.state)}`}>
-              {updateStatus?.state || "idle"}
+              {updateStatus?.state || "inactief"}
             </div>
           }
         >
-          <p className="mt-1 text-sm opacity-60">Gebruik stabiele of beta channel updates zonder GitHub-koppeling, direct vanaf je eigen updatebron.</p>
+              <p className="mt-1 text-sm opacity-60">Gebruik stabiele of beta-kanaalupdates zonder GitHub-koppeling, direct vanaf je eigen updatebron.</p>
 
           <div className="mt-4 grid gap-3 rounded-[1.5rem] border border-border bg-card/30 p-4 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium">Update channel</label>
+              <label className="block text-sm font-medium">Updatekanaal</label>
               <select
                 value={updateChannel}
                 onChange={(e) => setUpdateChannel(e.target.value as "stable" | "beta")}
@@ -876,7 +876,7 @@ export default function SettingsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium">Latest source URL ({updateChannel})</label>
+              <label className="block text-sm font-medium">Laatste bron-URL ({updateChannel})</label>
               <input
                 type="text"
                 value={updateChannel === "stable" ? updateConfig?.stable_source_url || "" : updateConfig?.beta_source_url || ""}
@@ -916,7 +916,7 @@ export default function SettingsPage() {
                 disabled={!updateConfig || updateBusy}
                 className="rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
               >
-                {updateBusy ? "Saving..." : "Save update settings"}
+                {updateBusy ? "Opslaan..." : "Update-instellingen opslaan"}
               </button>
               <button
                 onClick={fetchLatestUpdate}
@@ -924,7 +924,7 @@ export default function SettingsPage() {
                 className="inline-flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2 text-sm font-medium transition hover:bg-accent/10 disabled:opacity-50"
               >
                 <ArrowUpRight className="h-4 w-4" />
-                {fetchBusy ? "Fetching..." : `Fetch latest ${updateChannel}`}
+                {fetchBusy ? "Ophalen..." : `Laatste ${updateChannel} ophalen`}
               </button>
             </div>
           </div>
@@ -941,7 +941,7 @@ export default function SettingsPage() {
               disabled={!updateFile || updateBusy}
               className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
             >
-              {updateBusy ? "Uploading..." : "Upload Package"}
+              {updateBusy ? "Uploaden..." : "Pakket uploaden"}
             </button>
           </div>
 
@@ -951,23 +951,23 @@ export default function SettingsPage() {
               onChange={(e) => setSelectedPackage(e.target.value)}
               className="rounded-xl border border-border bg-card px-3 py-2 text-sm"
             >
-              <option value="">Select update package ({updateChannel})</option>
+              <option value="">Selecteer updatepakket ({updateChannel})</option>
               {channelPackages.map((pkg) => (
                 <option key={pkg.name} value={pkg.name}>
-                  [{pkg.channel || "manual"}] {pkg.name}
+                  [{pkg.channel || "handmatig"}] {pkg.name}
                 </option>
               ))}
             </select>
             <label className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">
               <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
-              Dry run
+              Proefdraaien
             </label>
             <button
               onClick={applyUpdate}
               disabled={!selectedPackage || updateBusy}
               className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
             >
-              {updateBusy ? "Applying..." : "Apply Update"}
+              {updateBusy ? "Toepassen..." : "Update toepassen"}
             </button>
           </div>
 
@@ -976,11 +976,11 @@ export default function SettingsPage() {
               <p>
                 Status: <span className="font-medium">{updateStatus.state}</span>
               </p>
-              {updateStatus.channel && <p className="mt-1">Channel: {updateStatus.channel}</p>}
-              {updateStatus.package_name && <p className="mt-1">Package: {updateStatus.package_name}</p>}
-              {typeof updateStatus.return_code === "number" && <p className="mt-1">Return code: {updateStatus.return_code}</p>}
-              {updateStatus.started_at && <p className="mt-1 opacity-70">Started: {new Date(updateStatus.started_at).toLocaleString()}</p>}
-              {updateStatus.finished_at && <p className="mt-1 opacity-70">Finished: {new Date(updateStatus.finished_at).toLocaleString()}</p>}
+              {updateStatus.channel && <p className="mt-1">Kanaal: {updateStatus.channel}</p>}
+              {updateStatus.package_name && <p className="mt-1">Pakket: {updateStatus.package_name}</p>}
+              {typeof updateStatus.return_code === "number" && <p className="mt-1">Returncode: {updateStatus.return_code}</p>}
+              {updateStatus.started_at && <p className="mt-1 opacity-70">Gestart: {new Date(updateStatus.started_at).toLocaleString()}</p>}
+              {updateStatus.finished_at && <p className="mt-1 opacity-70">Afgerond: {new Date(updateStatus.finished_at).toLocaleString()}</p>}
               {updateStatus.stderr && (
                 <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-black/20 p-3 text-xs text-red-300">
                   {updateStatus.stderr}
@@ -998,7 +998,7 @@ export default function SettingsPage() {
 
         {visibleSectionCount === 0 && (
           <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm opacity-60">
-            No settings sections match this filter.
+            Geen instellingensecties komen overeen met dit filter.
           </div>
         )}
       </div>

@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.core.security import generate_random_token, hash_token
+from app.core.security import hash_password
 from app.db.session import get_db
 from app.deps import require_role
-from app.models import AuditLog, File, Role, SystemSetting, User, UserInvitation, UserRole
+from app.models import AuditLog, File, Role, SystemSetting, User, UserRole
 from app.schemas.api import UserCreateRequest
 from app.services.audit import log_event
 from app.services.email import send_email
@@ -37,24 +37,42 @@ def create_user(
     if not role:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role does not exist")
 
-    token = generate_random_token()
-    invite = UserInvitation(
+    user = User(
         email=payload.email,
-        role_id=role.id,
-        invited_by=admin_user.id,
-        token_hash=hash_token(token),
-        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        full_name=payload.full_name,
+        password_hash=hash_password(payload.password),
+        is_active=True,
     )
-    db.add(invite)
+    db.add(user)
+    db.flush()
+
+    db.add(UserRole(user_id=user.id, role_id=role.id))
     db.commit()
 
-    send_email(
-        payload.email,
-        "ThoKan Cloud invitation",
-        f"You were invited to ThoKan Cloud by {admin_user.full_name}. Invitation token: {token}",
-    )
-    log_event(db, "admin.user.invite", actor_user_id=admin_user.id, metadata={"email": payload.email, "role": payload.role})
-    return {"message": "Invitation sent"}
+    email_sent = False
+    try:
+        send_email(
+            payload.email,
+            "ThoKan Cloud account created",
+            (
+                f"Hallo {payload.full_name},\n\n"
+                f"Je account voor ThoKan Cloud is aangemaakt door {admin_user.full_name}.\n"
+                f"Je kan meteen inloggen met:\n"
+                f"E-mail: {payload.email}\n"
+                f"Tijdelijk wachtwoord: {payload.password}\n\n"
+                "Verander je wachtwoord na de eerste login."
+            ),
+        )
+        email_sent = True
+    except Exception:
+        email_sent = False
+
+    log_event(db, "admin.user.create", actor_user_id=admin_user.id, metadata={"email": payload.email, "role": payload.role})
+    return {
+        "message": "Gebruiker aangemaakt" + (" en e-mail verzonden" if email_sent else " (geen e-mail verzonden; SMTP niet geconfigureerd of fout)"),
+        "email_sent": email_sent,
+        "user_id": str(user.id),
+    }
 
 
 @router.post("/users/{user_id}/roles/{role_name}")

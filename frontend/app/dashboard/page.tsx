@@ -31,6 +31,8 @@ type ShopifyOrder = {
   currency: string;
   total_price: string;
   created_at: string;
+  tags?: string;
+  cancelled_at?: string;
 };
 
 type ShopifyOrderDetail = ShopifyOrder & {
@@ -38,6 +40,14 @@ type ShopifyOrderDetail = ShopifyOrder & {
   total_tax: string;
   total_discounts: string;
   note: string;
+  processed_at?: string;
+  order_status_url?: string;
+  source_name?: string;
+  cancel_reason?: string;
+  discount_codes?: string[];
+  payment_gateway_names?: string[];
+  shipping_lines?: Array<{ title: string; code: string; price: string }>;
+  note_attributes?: Array<{ name: string; value: string }>;
   shipping_address: string[];
   billing_address: string[];
   line_items: Array<{
@@ -72,6 +82,14 @@ type GelatoOrderStatus = {
   shipment_statuses?: string[];
 };
 
+type ShopifyOrderEvent = {
+  id: string;
+  created_at: string;
+  author: string;
+  type: string;
+  message: string;
+};
+
 function ProgressBar({ current, total, color = "bg-accent" }: { current: number; total: number; color?: string }) {
   const percent = total > 0 ? Math.min((current / total) * 100, 100) : 0;
   return (
@@ -98,6 +116,9 @@ export default function DashboardPage() {
   const [activityFilter, setActivityFilter] = useState("all");
   const [ordersError, setOrdersError] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<ShopifyOrderDetail | null>(null);
+  const [orderEvents, setOrderEvents] = useState<ShopifyOrderEvent[]>([]);
+  const [orderEventsLoading, setOrderEventsLoading] = useState(false);
+  const [orderEventsError, setOrderEventsError] = useState("");
   const [orderDetailLoading, setOrderDetailLoading] = useState(false);
   const [orderDetailError, setOrderDetailError] = useState("");
   const [sendGelatoBusy, setSendGelatoBusy] = useState(false);
@@ -123,12 +144,12 @@ export default function DashboardPage() {
         setOrdersError("");
       } catch (err) {
         setOrders([]);
-        setOrdersError(err instanceof Error ? err.message : "Failed to load Shopify orders");
+        setOrdersError(err instanceof Error ? err.message : "Shopify bestellingen laden mislukt");
       }
     } catch {
       setData(null);
       setOrders([]);
-      setOrdersError("Failed to load dashboard data");
+      setOrdersError("Dashboard laden mislukt");
     }
     setLoading(false);
   }
@@ -136,17 +157,40 @@ export default function DashboardPage() {
   async function openOrderDetail(orderId: string) {
     setOrderDetailLoading(true);
     setOrderDetailError("");
+    setOrderEvents([]);
+    setOrderEventsError("");
     setGelatoStatus(null);
     setGelatoStatusError("");
     try {
-      const detail = await api<ShopifyOrderDetail>(`/shopify/orders/${orderId}`);
+      const [detail, eventsResult] = await Promise.all([
+        api<ShopifyOrderDetail>(`/shopify/orders/${orderId}`),
+        loadOrderEvents(orderId),
+      ]);
       setSelectedOrder(detail);
+      setOrderEvents(eventsResult);
       loadGelatoStatus(orderId);
     } catch (err) {
-      setOrderDetailError(err instanceof Error ? err.message : "Failed to load order detail");
+      setOrderDetailError(err instanceof Error ? err.message : "Besteldetails laden mislukt");
       setSelectedOrder(null);
     }
     setOrderDetailLoading(false);
+  }
+
+  async function loadOrderEvents(orderId: string) {
+    setOrderEventsLoading(true);
+    setOrderEventsError("");
+    try {
+      const response = await api<{ events: ShopifyOrderEvent[] }>(`/shopify/orders/${orderId}/events`);
+      const events = response.events || [];
+      setOrderEvents(events);
+      return events;
+    } catch (err) {
+      setOrderEvents([]);
+      setOrderEventsError(err instanceof Error ? err.message : "Shopify-events laden mislukt");
+      return [];
+    } finally {
+      setOrderEventsLoading(false);
+    }
   }
 
   async function loadGelatoStatus(orderId: string) {
@@ -157,13 +201,15 @@ export default function DashboardPage() {
       setGelatoStatus(result);
     } catch (err) {
       setGelatoStatus(null);
-      setGelatoStatusError(err instanceof Error ? err.message : "Failed to load Gelato status");
+      setGelatoStatusError(err instanceof Error ? err.message : "Gelato status laden mislukt");
     }
     setGelatoStatusLoading(false);
   }
 
   function closeOrderDetail() {
     setSelectedOrder(null);
+    setOrderEvents([]);
+    setOrderEventsError("");
     setOrderDetailError("");
     setSendGelatoStatus("");
     setGelatoStatus(null);
@@ -186,7 +232,7 @@ export default function DashboardPage() {
       setSendGelatoStatus(`${result.message}${unmapped}`);
       await loadGelatoStatus(selectedOrder.id);
     } catch (err) {
-      setSendGelatoStatus(err instanceof Error ? err.message : "Failed to send order to Gelato");
+      setSendGelatoStatus(err instanceof Error ? err.message : "Bestelling verzenden naar Gelato mislukt");
     }
     setSendGelatoBusy(false);
   }
@@ -237,11 +283,11 @@ export default function DashboardPage() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/40 px-3 py-1 text-xs font-medium opacity-80">
                 <Sparkles className="h-3.5 w-3.5 text-accent" />
-                Operational overview
+                Operationeel overzicht
               </div>
-              <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">Dashboard</h1>
+              <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">Overzicht</h1>
               <p className="mt-3 max-w-3xl text-sm opacity-70 sm:text-base">
-                Monitor storage, recent activity, and order operations from a clearer workspace built for faster decisions.
+                Volg opslag, recente activiteit en orderoperaties vanuit een heldere werkruimte voor snellere beslissingen.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <button
@@ -250,34 +296,34 @@ export default function DashboardPage() {
                   className="inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
                 >
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                  {loading ? "Refreshing..." : "Refresh dashboard"}
+                  {loading ? "Verversen..." : "Overzicht verversen"}
                 </button>
                 <div className="rounded-2xl border border-border px-4 py-2.5 text-sm opacity-70">
-                  {orders.length} Shopify orders loaded
+                  {orders.length} Shopify bestellingen geladen
                 </div>
               </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Storage used</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Opslag gebruikt</p>
                 <p className="mt-2 text-2xl font-semibold">{formatBytes(data?.used_bytes || 0)}</p>
-                <p className="mt-1 text-sm opacity-60">User data currently stored</p>
+                <p className="mt-1 text-sm opacity-60">Data van gebruikers in opslag</p>
               </div>
               <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Files</p>
                 <p className="mt-2 text-2xl font-semibold">{data?.files_count || 0}</p>
-                <p className="mt-1 text-sm opacity-60">Items inside cloud storage</p>
+                <p className="mt-1 text-sm opacity-60">Items in cloudopslag</p>
               </div>
               <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">System disk</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Systeemschijf</p>
                 <p className="mt-2 text-2xl font-semibold">{storagePercent.toFixed(1)}%</p>
-                <p className="mt-1 text-sm opacity-60">Current platform disk usage</p>
+                <p className="mt-1 text-sm opacity-60">Huidig schijfgebruik platform</p>
               </div>
               <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Activity</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Activiteit</p>
                 <p className="mt-2 text-2xl font-semibold">{filteredActivity.length}</p>
-                <p className="mt-1 text-sm opacity-60">Visible recent events</p>
+                <p className="mt-1 text-sm opacity-60">Zichtbare recente events</p>
               </div>
             </div>
           </div>
@@ -290,8 +336,8 @@ export default function DashboardPage() {
                 <HardDrive className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-sm font-medium opacity-70">Total Storage Used</h3>
-                <p className="text-xs opacity-55">Cloud data footprint</p>
+                <h3 className="text-sm font-medium opacity-70">Totale gebruikte opslag</h3>
+                <p className="text-xs opacity-55">Cloud dataverbruik</p>
               </div>
             </div>
             <p className="mt-4 text-3xl font-bold">{formatBytes(data?.used_bytes || 0)}</p>
@@ -304,12 +350,12 @@ export default function DashboardPage() {
                 <Boxes className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-sm font-medium opacity-70">Total Files</h3>
-                <p className="text-xs opacity-55">Managed stored items</p>
+                <h3 className="text-sm font-medium opacity-70">Totaal bestanden</h3>
+                <p className="text-xs opacity-55">Beheerde opgeslagen items</p>
               </div>
             </div>
             <p className="mt-4 text-3xl font-bold">{data?.files_count || 0}</p>
-            <p className="mt-2 text-sm opacity-60">files uploaded</p>
+            <p className="mt-2 text-sm opacity-60">bestanden geüpload</p>
           </div>
 
           <div className="glass rounded-[1.75rem] p-5 md:col-span-2 xl:col-span-1">
@@ -318,8 +364,8 @@ export default function DashboardPage() {
                 <Server className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-sm font-medium opacity-70">System Disk</h3>
-                <p className="text-xs opacity-55">Host capacity and headroom</p>
+                <h3 className="text-sm font-medium opacity-70">Systeemschijf</h3>
+                <p className="text-xs opacity-55">Hostcapaciteit en vrije ruimte</p>
               </div>
             </div>
             <p className="mt-4 text-3xl font-bold">{storagePercent.toFixed(1)}%</p>
@@ -329,7 +375,7 @@ export default function DashboardPage() {
               color={storageColor}
             />
             <p className="mt-1 text-xs opacity-60">
-              {data?.system_info?.storage_free_gb.toFixed(1)} GB free of {data?.system_info?.storage_total_gb.toFixed(1)} GB
+              {data?.system_info?.storage_free_gb.toFixed(1)} GB vrij van {data?.system_info?.storage_total_gb.toFixed(1)} GB
             </p>
           </div>
         </div>
@@ -340,13 +386,13 @@ export default function DashboardPage() {
               <Server className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold">System Information</h2>
-              <p className="mt-2 text-sm opacity-65">Core platform details for the running environment.</p>
+              <h2 className="text-xl font-semibold">Systeeminformatie</h2>
+              <p className="mt-2 text-sm opacity-65">Kerninformatie over de draaiende omgeving.</p>
             </div>
           </div>
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-xl border border-border bg-card/30 p-3">
-              <span className="text-xs font-medium opacity-70">Hostname</span>
+              <span className="text-xs font-medium opacity-70">Hostnaam</span>
               <p className="mt-1 font-mono text-sm">{data?.system_info?.hostname || "-"}</p>
             </div>
             <div className="rounded-xl border border-border bg-card/30 p-3">
@@ -354,11 +400,11 @@ export default function DashboardPage() {
               <p className="mt-1 font-mono text-sm">{data?.system_info?.platform || "-"}</p>
             </div>
             <div className="rounded-xl border border-border bg-card/30 p-3">
-              <span className="text-xs font-medium opacity-70">CPU Cores</span>
+              <span className="text-xs font-medium opacity-70">CPU-kernen</span>
               <p className="mt-1 font-mono text-sm">{data?.system_info?.cpu_cores || 0}</p>
             </div>
             <div className="rounded-xl border border-border bg-card/30 p-3">
-              <span className="text-xs font-medium opacity-70">Storage Path</span>
+              <span className="text-xs font-medium opacity-70">Opslagpad</span>
               <p className="mt-1 truncate font-mono text-sm">{data?.system_info?.storage_path || "-"}</p>
             </div>
           </div>
@@ -371,8 +417,8 @@ export default function DashboardPage() {
                 <Boxes className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="font-semibold">Recent Files</h3>
-                <p className="mt-1 text-sm opacity-65">Recently created or uploaded files in the cloud.</p>
+                <h3 className="font-semibold">Recente bestanden</h3>
+                <p className="mt-1 text-sm opacity-65">Recent aangemaakte of geüploade bestanden in de cloud.</p>
               </div>
             </div>
             <ul className="mt-5 space-y-3">
@@ -388,7 +434,7 @@ export default function DashboardPage() {
                 ))
               ) : (
                 <li className="rounded-xl border border-dashed border-border p-4 text-center text-sm opacity-60">
-                  No files yet
+                  Nog geen bestanden
                 </li>
               )}
             </ul>
@@ -401,8 +447,8 @@ export default function DashboardPage() {
                   <Activity className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-semibold">Activity Logs</h3>
-                  <p className="mt-1 text-sm opacity-65">Recent system actions and operational events.</p>
+                  <h3 className="font-semibold">Activiteitslog</h3>
+                  <p className="mt-1 text-sm opacity-65">Recente systeemacties en operationele gebeurtenissen.</p>
                 </div>
               </div>
             </div>
@@ -413,7 +459,7 @@ export default function DashboardPage() {
                 onChange={(e) => setActivityFilter(e.target.value)}
                 className="rounded-lg border border-border bg-transparent px-2 py-1 text-xs"
               >
-                <option value="all">All activity</option>
+                <option value="all">Alle activiteit</option>
                 {activityTypes.map((activity) => (
                   <option key={activity} value={activity}>
                     {activity}
@@ -431,7 +477,7 @@ export default function DashboardPage() {
                 ))
               ) : (
                 <li className="rounded-xl border border-dashed border-border p-4 text-center text-sm opacity-60">
-                  No activity yet
+                  Nog geen activiteit
                 </li>
               )}
             </ul>
@@ -445,18 +491,18 @@ export default function DashboardPage() {
                 <ShoppingCart className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="font-semibold">Shopify Orders</h3>
-                <p className="mt-1 text-sm opacity-65">Review the latest store orders and open full fulfillment details.</p>
+                <h3 className="font-semibold">Shopify bestellingen</h3>
+                <p className="mt-1 text-sm opacity-65">Bekijk de laatste shopbestellingen en open volledige orderdetails.</p>
               </div>
             </div>
-            <span className="rounded-full bg-card/45 px-3 py-1 text-xs opacity-70">Latest 10</span>
+            <span className="rounded-full bg-card/45 px-3 py-1 text-xs opacity-70">Laatste 10</span>
           </div>
 
           <div className="mt-5 grid gap-2 md:grid-cols-[1fr_auto_auto]">
             <input
               value={ordersSearch}
               onChange={(e) => setOrdersSearch(e.target.value)}
-              placeholder="Search order, customer, email"
+              placeholder="Zoek bestelling, klant of e-mail"
               className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
             />
             <select
@@ -464,19 +510,19 @@ export default function DashboardPage() {
               onChange={(e) => setOrdersSort(e.target.value as "newest" | "oldest" | "amount")}
               className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
             >
-              <option value="newest">Newest first</option>
-              <option value="oldest">Oldest first</option>
-              <option value="amount">Highest amount</option>
+              <option value="newest">Nieuwste eerst</option>
+              <option value="oldest">Oudste eerst</option>
+              <option value="amount">Hoogste bedrag</option>
             </select>
             <select
               value={ordersStatusFilter}
               onChange={(e) => setOrdersStatusFilter(e.target.value)}
               className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
             >
-              <option value="all">All fulfillment</option>
-              <option value="unfulfilled">Unfulfilled</option>
-              <option value="fulfilled">Fulfilled</option>
-              <option value="partial">Partial</option>
+              <option value="all">Alle afhandeling</option>
+              <option value="unfulfilled">Niet vervuld</option>
+              <option value="fulfilled">Vervuld</option>
+              <option value="partial">Gedeeltelijk</option>
             </select>
           </div>
 
@@ -487,12 +533,12 @@ export default function DashboardPage() {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left opacity-70">
-                    <th className="px-4 py-3">Order</th>
-                    <th className="px-4 py-3">Customer</th>
-                    <th className="px-4 py-3">Total</th>
-                    <th className="px-4 py-3">Payment</th>
-                    <th className="px-4 py-3">Fulfillment</th>
-                    <th className="px-4 py-3">Created</th>
+                    <th className="px-4 py-3">Bestelling</th>
+                    <th className="px-4 py-3">Klant</th>
+                    <th className="px-4 py-3">Totaal</th>
+                    <th className="px-4 py-3">Betaling</th>
+                    <th className="px-4 py-3">Afhandeling</th>
+                    <th className="px-4 py-3">Aangemaakt</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -508,7 +554,7 @@ export default function DashboardPage() {
                         {order.total_price} {order.currency}
                       </td>
                       <td className="px-4 py-3">{order.financial_status || "-"}</td>
-                      <td className="px-4 py-3">{order.fulfillment_status || "unfulfilled"}</td>
+                      <td className="px-4 py-3">{order.fulfillment_status || "niet vervuld"}</td>
                       <td className="px-4 py-3">{order.created_at ? new Date(order.created_at).toLocaleString() : "-"}</td>
                     </tr>
                   ))}
@@ -516,76 +562,80 @@ export default function DashboardPage() {
               </table>
             ) : (
               <div className="rounded-xl border border-dashed border-border p-4 text-center text-sm opacity-60">
-                No Shopify orders yet or Shopify is not configured.
+                Nog geen Shopify bestellingen of Shopify is niet geconfigureerd.
               </div>
             )}
           </div>
-          <p className="mt-2 text-xs opacity-60">Click an order row to view details.</p>
+          <p className="mt-2 text-xs opacity-60">Klik op een bestelregel om details te openen.</p>
         </section>
 
         {(orderDetailLoading || orderDetailError || selectedOrder) && (
           <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
             <div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl border border-border bg-card p-5">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Order Details</h3>
+                <h3 className="text-lg font-semibold">Besteldetails</h3>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={sendOrderToGelato}
                     disabled={sendToGelatoDisabled}
                     className="rounded-lg bg-accent px-3 py-1 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
                   >
-                    {sendGelatoBusy ? "Sending..." : hasGelatoOrder ? "Already in Gelato" : "Send to Gelato"}
+                    {sendGelatoBusy ? "Verzenden..." : hasGelatoOrder ? "Reeds in Gelato" : "Stuur naar Gelato"}
                   </button>
                   <button onClick={closeOrderDetail} className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-card/70">
-                    Close
+                    Sluiten
                   </button>
                 </div>
               </div>
 
-              {orderDetailLoading && <p className="text-sm opacity-70">Loading order details...</p>}
+              {orderDetailLoading && <p className="text-sm opacity-70">Besteldetails laden...</p>}
               {orderDetailError && <p className="text-sm text-red-400">{orderDetailError}</p>}
               {sendGelatoStatus && <p className="mb-3 text-sm text-green-400">{sendGelatoStatus}</p>}
 
               {selectedOrder && !orderDetailLoading && (
                 <div className="space-y-4 text-sm">
-                  <div className="grid gap-3 md:grid-cols-3">
+                  <div className="grid gap-3 md:grid-cols-4">
                     <div className="rounded-xl border border-border bg-card/40 p-3">
-                      <p className="text-xs opacity-60">Order</p>
+                      <p className="text-xs opacity-60">Bestelling</p>
                       <p className="mt-1 font-medium">{selectedOrder.name}</p>
                     </div>
                     <div className="rounded-xl border border-border bg-card/40 p-3">
-                      <p className="text-xs opacity-60">Customer</p>
+                      <p className="text-xs opacity-60">Klant</p>
                       <p className="mt-1 font-medium">{selectedOrder.customer_name || selectedOrder.email || "-"}</p>
                     </div>
                     <div className="rounded-xl border border-border bg-card/40 p-3">
-                      <p className="text-xs opacity-60">Created</p>
+                      <p className="text-xs opacity-60">Aangemaakt</p>
                       <p className="mt-1 font-medium">
                         {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString() : "-"}
                       </p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-card/40 p-3">
+                      <p className="text-xs opacity-60">Status</p>
+                      <p className="mt-1 font-medium">{selectedOrder.fulfillment_status || "-"}</p>
                     </div>
                   </div>
 
                   <div className="grid gap-3 md:grid-cols-4">
                     <div className="rounded-xl border border-border bg-card/40 p-3">
-                      <p className="text-xs opacity-60">Subtotal</p>
+                      <p className="text-xs opacity-60">Subtotaal</p>
                       <p className="mt-1 font-medium">
                         {selectedOrder.subtotal_price} {selectedOrder.currency}
                       </p>
                     </div>
                     <div className="rounded-xl border border-border bg-card/40 p-3">
-                      <p className="text-xs opacity-60">Tax</p>
+                      <p className="text-xs opacity-60">Belasting</p>
                       <p className="mt-1 font-medium">
                         {selectedOrder.total_tax} {selectedOrder.currency}
                       </p>
                     </div>
                     <div className="rounded-xl border border-border bg-card/40 p-3">
-                      <p className="text-xs opacity-60">Discounts</p>
+                      <p className="text-xs opacity-60">Kortingen</p>
                       <p className="mt-1 font-medium">
                         {selectedOrder.total_discounts} {selectedOrder.currency}
                       </p>
                     </div>
                     <div className="rounded-xl border border-border bg-card/40 p-3">
-                      <p className="text-xs opacity-60">Total</p>
+                      <p className="text-xs opacity-60">Totaal</p>
                       <p className="mt-1 font-medium">
                         {selectedOrder.total_price} {selectedOrder.currency}
                       </p>
@@ -594,7 +644,7 @@ export default function DashboardPage() {
 
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="rounded-xl border border-border bg-card/40 p-3">
-                      <p className="text-xs opacity-60">Shipping Address</p>
+                      <p className="text-xs opacity-60">Verzendadres</p>
                       <div className="mt-1 space-y-1">
                         {selectedOrder.shipping_address.length > 0 ? (
                           selectedOrder.shipping_address.map((line, idx) => (
@@ -608,7 +658,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div className="rounded-xl border border-border bg-card/40 p-3">
-                      <p className="text-xs opacity-60">Billing Address</p>
+                      <p className="text-xs opacity-60">Factuuradres</p>
                       <div className="mt-1 space-y-1">
                         {selectedOrder.billing_address.length > 0 ? (
                           selectedOrder.billing_address.map((line, idx) => (
@@ -623,8 +673,68 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-xl border border-border bg-card/40 p-3">
+                      <p className="text-xs opacity-60">Bron & tags</p>
+                      <p className="mt-1 font-medium">Bron: {selectedOrder.source_name || "-"}</p>
+                      <p className="mt-1 text-xs opacity-70">Tags: {selectedOrder.tags || "-"}</p>
+                      {selectedOrder.discount_codes && selectedOrder.discount_codes.length > 0 && (
+                        <p className="mt-1 text-xs opacity-70">Kortingcodes: {selectedOrder.discount_codes.join(", ")}</p>
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-border bg-card/40 p-3">
+                      <p className="text-xs opacity-60">Betaal- en verzendinfo</p>
+                      <p className="mt-1 text-xs opacity-70">
+                        Betaalgateways: {selectedOrder.payment_gateway_names && selectedOrder.payment_gateway_names.length > 0 ? selectedOrder.payment_gateway_names.join(", ") : "-"}
+                      </p>
+                      {selectedOrder.shipping_lines && selectedOrder.shipping_lines.length > 0 ? (
+                        <ul className="mt-1 space-y-1 text-xs opacity-70">
+                          {selectedOrder.shipping_lines.map((line, idx) => (
+                            <li key={`${line.title}-${idx}`}>{line.title || "Verzending"}: {line.price} {selectedOrder.currency}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-1 text-xs opacity-70">Geen verzendlijnen</p>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="rounded-xl border border-border bg-card/40 p-3">
-                    <p className="text-xs opacity-60">Line Items</p>
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs opacity-60">Shopify chats & gebeurtenissen</p>
+                      {selectedOrder?.id && (
+                        <button
+                          onClick={() => void loadOrderEvents(selectedOrder.id)}
+                          disabled={orderEventsLoading}
+                          className="rounded-lg border border-border px-2 py-1 text-xs transition hover:bg-card/70 disabled:opacity-50"
+                        >
+                          {orderEventsLoading ? "Verversen..." : "Gebeurtenissen verversen"}
+                        </button>
+                      )}
+                    </div>
+                    {orderEventsError && <p className="text-sm text-red-400">{orderEventsError}</p>}
+                    {!orderEventsError && orderEvents.length === 0 && !orderEventsLoading && (
+                      <p className="text-sm opacity-70">Geen Shopify-gebeurtenissen gevonden voor deze bestelling.</p>
+                    )}
+                    {orderEventsLoading && <p className="text-sm opacity-70">Shopify-gebeurtenissen laden...</p>}
+                    {orderEvents.length > 0 && (
+                      <ul className="space-y-2">
+                        {orderEvents.slice(0, 30).map((event) => (
+                          <li key={event.id} className="rounded-lg border border-border/70 bg-card/30 p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-xs font-medium uppercase opacity-65">{event.type}</p>
+                              <p className="text-xs opacity-55">{event.created_at ? new Date(event.created_at).toLocaleString() : "-"}</p>
+                            </div>
+                            <p className="mt-1 text-sm font-medium">{event.author}</p>
+                            <p className="mt-1 text-sm opacity-80">{event.message}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-card/40 p-3">
+                      <p className="text-xs opacity-60">Bestelregels</p>
                     {selectedOrder.line_items.length > 0 ? (
                       <div className="mt-2 overflow-x-auto">
                         <table className="min-w-full text-sm">
@@ -632,8 +742,8 @@ export default function DashboardPage() {
                             <tr className="border-b border-border text-left opacity-70">
                               <th className="px-2 py-2">Product</th>
                               <th className="px-2 py-2">SKU</th>
-                              <th className="px-2 py-2">Qty</th>
-                              <th className="px-2 py-2">Price</th>
+                              <th className="px-2 py-2">Aantal</th>
+                              <th className="px-2 py-2">Prijs</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -651,35 +761,35 @@ export default function DashboardPage() {
                         </table>
                       </div>
                     ) : (
-                      <p className="mt-1 font-medium">No line items</p>
+                      <p className="mt-1 font-medium">Geen orderregels</p>
                     )}
                   </div>
 
                   <div className="rounded-xl border border-border bg-card/40 p-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs opacity-60">Gelato Fulfillment</p>
+                      <p className="text-xs opacity-60">Gelato-afhandeling</p>
                       {selectedOrder?.id && (
                         <button
                           onClick={() => loadGelatoStatus(selectedOrder.id)}
                           disabled={gelatoStatusLoading}
                           className="rounded-lg border border-border px-2 py-1 text-xs transition hover:bg-card/70 disabled:opacity-50"
                         >
-                          {gelatoStatusLoading ? "Refreshing..." : "Refresh Gelato"}
+                          {gelatoStatusLoading ? "Verversen..." : "Ververs Gelato"}
                         </button>
                       )}
                     </div>
 
-                    {gelatoStatusLoading && <p className="mt-2 text-sm opacity-70">Loading Gelato status...</p>}
+                    {gelatoStatusLoading && <p className="mt-2 text-sm opacity-70">Gelato status laden...</p>}
                     {gelatoStatusError && <p className="mt-2 text-sm text-red-400">{gelatoStatusError}</p>}
 
                     {!gelatoStatusLoading && !gelatoStatusError && gelatoStatus && !gelatoStatus.found && (
-                      <p className="mt-2 text-sm opacity-70">Nog geen Gelato order gevonden voor deze Shopify order.</p>
+                      <p className="mt-2 text-sm opacity-70">Nog geen Gelato-bestelling gevonden voor deze Shopify-bestelling.</p>
                     )}
 
                     {!gelatoStatusLoading && !gelatoStatusError && gelatoStatus?.found && (
                       <div className="mt-3 space-y-3">
                         <div className="rounded-xl border border-border bg-card/30 p-3">
-                          <p className="text-xs opacity-60">Current Stage</p>
+                          <p className="text-xs opacity-60">Huidige fase</p>
                           <p className="mt-1 font-medium">{gelatoStatus.stage || "-"}</p>
                           {gelatoStatus.stage_message && <p className="mt-1 text-xs opacity-70">{gelatoStatus.stage_message}</p>}
                         </div>
@@ -690,11 +800,11 @@ export default function DashboardPage() {
                             <p className="mt-1 font-medium">{gelatoStatus.status || "-"}</p>
                           </div>
                           <div className="rounded-xl border border-border bg-card/30 p-3">
-                            <p className="text-xs opacity-60">Production</p>
+                            <p className="text-xs opacity-60">Productie</p>
                             <p className="mt-1 font-medium">{gelatoStatus.production_status || "-"}</p>
                           </div>
                           <div className="rounded-xl border border-border bg-card/30 p-3">
-                            <p className="text-xs opacity-60">Shipping</p>
+                            <p className="text-xs opacity-60">Verzending</p>
                             <p className="mt-1 font-medium">{gelatoStatus.shipping_status || gelatoStatus.delivery_status || "-"}</p>
                           </div>
                           <div className="rounded-xl border border-border bg-card/30 p-3">
@@ -707,12 +817,12 @@ export default function DashboardPage() {
 
                         <div className="grid gap-3 md:grid-cols-2">
                           <div className="rounded-xl border border-border bg-card/30 p-3">
-                            <p className="text-xs opacity-60">Gelato Order</p>
+                            <p className="text-xs opacity-60">Gelato-bestelling</p>
                             <p className="mt-1 font-medium">{gelatoStatus.gelato_order_id || "-"}</p>
-                            <p className="mt-1 text-xs opacity-60">External: {gelatoStatus.external_id || "-"}</p>
+                            <p className="mt-1 text-xs opacity-60">Extern: {gelatoStatus.external_id || "-"}</p>
                           </div>
                           <div className="rounded-xl border border-border bg-card/30 p-3">
-                            <p className="text-xs opacity-60">Recipient</p>
+                            <p className="text-xs opacity-60">Ontvanger</p>
                             <p className="mt-1 font-medium">{gelatoStatus.recipient_name || "-"}</p>
                             <p className="mt-1 text-xs opacity-60">{gelatoStatus.recipient_country || "-"}</p>
                           </div>
@@ -725,7 +835,7 @@ export default function DashboardPage() {
                               {gelatoStatus.tracking_urls.map((url, index) => (
                                 <li key={`tracking-url-${index}`}>
                                   <a className="text-sm text-accent hover:underline" href={url} target="_blank" rel="noreferrer">
-                                    Track shipment {index + 1}
+                                    Volg zending {index + 1}
                                   </a>
                                 </li>
                               ))}
@@ -735,13 +845,13 @@ export default function DashboardPage() {
                           )}
 
                           {gelatoStatus.tracking_numbers && gelatoStatus.tracking_numbers.length > 0 && (
-                            <p className="mt-2 text-xs opacity-60">Tracking numbers: {gelatoStatus.tracking_numbers.join(", ")}</p>
+                            <p className="mt-2 text-xs opacity-60">Trackingnummers: {gelatoStatus.tracking_numbers.join(", ")}</p>
                           )}
                           {gelatoStatus.carriers && gelatoStatus.carriers.length > 0 && (
-                            <p className="mt-1 text-xs opacity-60">Carrier(s): {gelatoStatus.carriers.join(", ")}</p>
+                            <p className="mt-1 text-xs opacity-60">Vervoerder(s): {gelatoStatus.carriers.join(", ")}</p>
                           )}
                           {gelatoStatus.shipment_statuses && gelatoStatus.shipment_statuses.length > 0 && (
-                            <p className="mt-1 text-xs opacity-60">Shipment status: {gelatoStatus.shipment_statuses.join(", ")}</p>
+                            <p className="mt-1 text-xs opacity-60">Zendingsstatus: {gelatoStatus.shipment_statuses.join(", ")}</p>
                           )}
                         </div>
                       </div>
@@ -750,7 +860,7 @@ export default function DashboardPage() {
 
                   {selectedOrder.note && (
                     <div className="rounded-xl border border-border bg-card/40 p-3">
-                      <p className="text-xs opacity-60">Order Note</p>
+                      <p className="text-xs opacity-60">Bestelnotitie</p>
                       <p className="mt-1 font-medium">{selectedOrder.note}</p>
                     </div>
                   )}

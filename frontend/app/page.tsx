@@ -10,26 +10,26 @@ type SessionState = "loading" | "authenticated" | "guest";
 
 const featureCards = [
   {
-    title: "Files",
-    description: "Manage cloud storage, recent uploads, and team documents from one clean workspace.",
+    title: "Bestanden",
+    description: "Beheer cloudopslag, recente uploads en teamdocumenten vanuit één overzichtelijke werkruimte.",
     href: "/files",
     icon: FolderOpen,
   },
   {
-    title: "Mail",
-    description: "Read inbox and sent messages in a focused interface with faster navigation.",
+    title: "E-mail",
+    description: "Bekijk inbox en verzonden berichten in een gerichte interface met snellere navigatie.",
     href: "/mail",
     icon: Mail,
   },
   {
     title: "Admin",
-    description: "Monitor users, storage, and platform health with a professional control surface.",
+    description: "Monitor gebruikers, opslag en platformstatus met een professioneel beheerpaneel.",
     href: "/admin",
     icon: ShieldCheck,
   },
   {
-    title: "Settings",
-    description: "Control updates, environment options, and mailbox configuration in one place.",
+    title: "Instellingen",
+    description: "Beheer updates, omgevingsopties en mailboxconfiguratie op één plek.",
     href: "/settings",
     icon: Settings,
   },
@@ -56,9 +56,9 @@ export default function HomePage() {
 
   const primaryAction = useMemo(() => {
     if (sessionState === "authenticated") {
-      return { href: "/dashboard", label: "Open dashboard" };
+      return { href: "/dashboard", label: "Open overzicht" };
     }
-    return { href: "/login", label: "Sign in" };
+    return { href: "/login", label: "Inloggen" };
   }, [sessionState]);
 
   return (
@@ -72,17 +72,17 @@ export default function HomePage() {
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] opacity-50">ThoKan</p>
-                <h1 className="text-2xl font-semibold">Cloud workspace</h1>
+                <h1 className="text-2xl font-semibold">Cloud werkruimte</h1>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <ThemeToggle />
               <Link href={primaryAction.href} className="rounded-2xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90">
-                {sessionState === "loading" ? "Checking session..." : primaryAction.label}
+                {sessionState === "loading" ? "Sessie controleren..." : primaryAction.label}
               </Link>
               {sessionState !== "authenticated" && (
                 <Link href="/register" className="rounded-2xl border border-border px-4 py-2.5 text-sm font-medium transition hover:bg-card/70">
-                  Create account
+                  Account aanmaken
                 </Link>
               )}
             </div>
@@ -97,42 +97,42 @@ export default function HomePage() {
               <div className="space-y-6">
                 <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/60 px-3 py-1 text-xs font-medium opacity-80">
                   <Sparkles className="h-3.5 w-3.5 text-accent" />
-                  Professional cloud control center
+                  Professioneel cloud controlecentrum
                 </div>
                 <div className="space-y-3">
                   <h2 className="max-w-3xl text-4xl font-semibold leading-tight sm:text-5xl">
-                    A cleaner, faster home for your files, mail, and operations.
+                    Een snellere, duidelijkere start voor bestanden, e-mail en operaties.
                   </h2>
                   <p className="max-w-2xl text-base opacity-70 sm:text-lg">
-                    ThoKan Cloud now starts with a modern overview page that gives direct access to the tools your team uses most.
+                    ThoKan Cloud start nu met een moderne overzichtspagina die direct toegang geeft tot de tools die je team het meest gebruikt.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <Link href={primaryAction.href} className="rounded-2xl bg-accent px-5 py-3 text-sm font-medium text-white transition hover:opacity-90">
-                    {sessionState === "authenticated" ? "Go to dashboard" : "Enter cloud"}
+                    {sessionState === "authenticated" ? "Ga naar overzicht" : "Open cloud"}
                   </Link>
                   <Link href="/files" className="rounded-2xl border border-border px-5 py-3 text-sm font-medium transition hover:bg-card/70">
-                    Browse files
+                    Open bestanden
                   </Link>
                   <Link href="/mail" className="rounded-2xl border border-border px-5 py-3 text-sm font-medium transition hover:bg-card/70">
-                    Open mailbox
+                    Open postvak
                   </Link>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="rounded-2xl border border-border/70 bg-card/50 p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] opacity-50">Storage</p>
-                    <p className="mt-2 text-lg font-semibold">Centralized files</p>
-                    <p className="mt-1 text-sm opacity-65">Quick access to uploads, recent items, and shared work.</p>
+                    <p className="text-xs uppercase tracking-[0.18em] opacity-50">Opslag</p>
+                    <p className="mt-2 text-lg font-semibold">Gecentraliseerde bestanden</p>
+                    <p className="mt-1 text-sm opacity-65">Snelle toegang tot uploads, recente items en gedeeld werk.</p>
                   </div>
                   <div className="rounded-2xl border border-border/70 bg-card/50 p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] opacity-50">Mail</p>
-                    <p className="mt-2 text-lg font-semibold">Inbox + Sent</p>
-                    <p className="mt-1 text-sm opacity-65">One place to review conversations and respond faster.</p>
+                    <p className="text-xs uppercase tracking-[0.18em] opacity-50">E-mail</p>
+                    <p className="mt-2 text-lg font-semibold">Postvak IN + Verzonden</p>
+                    <p className="mt-1 text-sm opacity-65">Eén plek om gesprekken te beheren en sneller te reageren.</p>
                   </div>
                   <div className="rounded-2xl border border-border/70 bg-card/50 p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] opacity-50">Control</p>
-                    <p className="mt-2 text-lg font-semibold">Platform settings</p>
-                    <p className="mt-1 text-sm opacity-65">Updates, environment actions, and system controls.</p>
+                    <p className="text-xs uppercase tracking-[0.18em] opacity-50">Beheer</p>
+                    <p className="mt-2 text-lg font-semibold">Platforminstellingen</p>
+                    <p className="mt-1 text-sm opacity-65">Updates, omgevingsacties en systeemcontrole.</p>
                   </div>
                 </div>
               </div>
@@ -140,18 +140,18 @@ export default function HomePage() {
               <div className="glass rounded-[2rem] p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium">Workspace status</p>
-                    <p className="text-xs opacity-55">Live overview of the cloud surface</p>
+                    <p className="text-sm font-medium">Werkruimtestatus</p>
+                    <p className="text-xs opacity-55">Live-overzicht van de cloudomgeving</p>
                   </div>
                   <span className="rounded-full bg-green-500/15 px-3 py-1 text-xs font-medium text-green-500">
-                    {sessionState === "loading" ? "Checking" : sessionState === "authenticated" ? "Ready" : "Guest"}
+                    {sessionState === "loading" ? "Controleren" : sessionState === "authenticated" ? "Klaar" : "Gast"}
                   </span>
                 </div>
                 <div className="space-y-3">
                   <div className="rounded-2xl border border-border/70 bg-card/40 p-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Dashboard access</span>
-                      <span className="text-xs opacity-55">Always available</span>
+                      <span className="text-sm font-medium">Toegang overzicht</span>
+                      <span className="text-xs opacity-55">Altijd beschikbaar</span>
                     </div>
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-card/70">
                       <div className="h-full w-full rounded-full bg-accent" />
@@ -159,8 +159,8 @@ export default function HomePage() {
                   </div>
                   <div className="rounded-2xl border border-border/70 bg-card/40 p-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Mail workspace</span>
-                      <span className="text-xs opacity-55">Redesigned</span>
+                      <span className="text-sm font-medium">E-mail werkruimte</span>
+                      <span className="text-xs opacity-55">Vernieuwd</span>
                     </div>
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-card/70">
                       <div className="h-full w-[88%] rounded-full bg-sky-400" />
@@ -168,8 +168,8 @@ export default function HomePage() {
                   </div>
                   <div className="rounded-2xl border border-border/70 bg-card/40 p-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Update controls</span>
-                      <span className="text-xs opacity-55">Stable + beta</span>
+                      <span className="text-sm font-medium">Updatebeheer</span>
+                      <span className="text-xs opacity-55">Stabiel + beta</span>
                     </div>
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-card/70">
                       <div className="h-full w-[92%] rounded-full bg-violet-400" />

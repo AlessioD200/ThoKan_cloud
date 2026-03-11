@@ -39,7 +39,7 @@ export default function LoginPage() {
       
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError(err instanceof Error ? err.message : "Inloggen mislukt");
     } finally {
       setLoading(false);
     }
@@ -59,10 +59,10 @@ export default function LoginPage() {
               </div>
               <img src="/Logo_tekst_CV.png" alt="ThoKan Cloud" className="mt-6 h-16 w-auto" />
               <h1 className="mt-8 max-w-xl text-4xl font-semibold leading-tight xl:text-5xl">
-                Welcome back to a cleaner ThoKan Cloud workspace.
+                Welkom terug in een duidelijke ThoKan Cloud werkruimte.
               </h1>
               <p className="mt-4 max-w-xl text-base opacity-70">
-                Sign in to continue working with files, mail, orders, and platform controls from one consistent interface.
+                Log in om verder te werken met bestanden, e-mail, bestellingen en platformbeheer vanuit één interface.
               </p>
             </div>
 
@@ -74,7 +74,7 @@ export default function LoginPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium">Protected access</p>
-                    <p className="text-xs opacity-60">Session-based authentication with secure token flow.</p>
+                    <p className="text-xs opacity-60">Sessie-gebaseerde authenticatie met veilige tokenflow.</p>
                   </div>
                 </div>
               </div>
@@ -85,7 +85,7 @@ export default function LoginPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium">Direct workspace access</p>
-                    <p className="text-xs opacity-60">Jump straight into your dashboard after login.</p>
+                    <p className="text-xs opacity-60">Ga direct naar je overzicht na het inloggen.</p>
                   </div>
                 </div>
               </div>
@@ -96,9 +96,9 @@ export default function LoginPage() {
         <section className="flex items-center justify-center p-6 sm:p-8 xl:p-10">
           <div className="w-full max-w-md">
             <div className="mb-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">Authentication</p>
-              <h2 className="mt-2 text-3xl font-semibold">Sign in</h2>
-              <p className="mt-2 text-sm opacity-70">Use your account credentials to open the cloud workspace.</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">Authenticatie</p>
+              <h2 className="mt-2 text-3xl font-semibold">Inloggen</h2>
+              <p className="mt-2 text-sm opacity-70">Gebruik je accountgegevens om de cloudwerkruimte te openen.</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
@@ -120,7 +120,7 @@ export default function LoginPage() {
 
               <div>
                 <label htmlFor="password" className="mb-2 block text-sm font-medium">
-                  Password
+                  Wachtwoord
                 </label>
                 <input
                   id="password"
@@ -144,19 +144,19 @@ export default function LoginPage() {
                 disabled={loading}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-accent px-4 py-3 font-medium text-white transition hover:opacity-90 disabled:opacity-50"
               >
-                {loading ? "Signing in..." : "Sign In"}
+                {loading ? "Inloggen..." : "Inloggen"}
                 {!loading && <ArrowRight className="h-4 w-4" />}
               </button>
             </form>
 
             <div className="mt-6 rounded-[1.5rem] border border-border/70 bg-card/35 p-4 text-sm opacity-70">
-              Need an account? Ask an administrator or continue to registration if self-signup is enabled.
+              Nog geen account? Vraag een administrator of registreer als self-signup geactiveerd is.
             </div>
 
             <p className="mt-6 text-center text-sm opacity-60">
-              Don&apos;t have an account?{" "}
+              Nog geen account?{" "}
               <Link href="/register" className="text-accent hover:underline">
-                Register
+                Registreren
               </Link>
             </p>
           </div>

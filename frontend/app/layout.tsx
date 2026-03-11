@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "ThoKan Cloud",
-  description: "Self-hosted cloud storage platform",
+  description: "Self-hosted cloudopslagplatform",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [{ url: "/Logo.png", type: "image/png" }],
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="nl">
       <body>
         <PWARegister />
         <CapacitorProviders />

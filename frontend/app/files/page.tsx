@@ -244,7 +244,7 @@ export default function FilesPage() {
   }
 
   async function renameFile(id: string) {
-    const name = prompt("New file name");
+    const name = prompt("Nieuwe bestandsnaam");
     if (!name) return;
     try {
       setUserError("");
@@ -261,7 +261,7 @@ export default function FilesPage() {
   }
 
   async function deleteFile(id: string) {
-    if (!confirm("Delete this file?")) return;
+    if (!confirm("Dit bestand verwijderen?")) return;
     try {
       setUserError("");
       setUserNotice("Bestand wordt verwijderd...");
@@ -274,7 +274,7 @@ export default function FilesPage() {
   }
 
   async function deleteFolder(id: string) {
-    if (!confirm("Delete this folder?")) return;
+    if (!confirm("Deze map verwijderen?")) return;
     try {
       setUserError("");
       setUserNotice("Map wordt verwijderd...");
@@ -304,7 +304,7 @@ export default function FilesPage() {
       setUserNotice(`Download gestart: ${file.name}`);
     } catch {
       setUserError(`Download mislukt voor ${file.name}.`);
-      setUserNotice("Fallback download wordt geprobeerd...");
+      setUserNotice("Alternatieve download wordt geprobeerd...");
       link.click();
     }
   }
@@ -326,16 +326,16 @@ export default function FilesPage() {
       }
 
       if (isOfficeFile(file)) {
-        setUserNotice("Office-document gedetecteerd. We openen een online viewer...");
+        setUserNotice("Office-document gedetecteerd. We openen een online kijker...");
         const token = localStorage.getItem("access_token");
         if (!token) {
-          throw new Error("Session expired. Please log in again.");
+          throw new Error("Sessie verlopen. Log opnieuw in.");
         }
         const officeSource = `${getApiBase()}/files/${file.id}/download?token=${encodeURIComponent(token)}`;
         const officeViewer = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(officeSource)}`;
         setPreviewOfficeUrl(officeViewer);
         setPreviewUrl(null);
-        setUserNotice("Office viewer geopend. Als dit niet werkt is je server waarschijnlijk niet publiek bereikbaar.");
+        setUserNotice("Office-kijker geopend. Als dit niet werkt is je server waarschijnlijk niet publiek bereikbaar.");
         return;
       }
 
@@ -352,7 +352,7 @@ export default function FilesPage() {
       }
       setUserNotice(`Preview klaar: ${file.name}`);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Load failed";
+      const message = err instanceof Error ? err.message : "Laden mislukt";
       setPreviewError(message);
       setUserError(`Preview mislukt voor ${file.name}: ${message}`);
       setPreviewUrl(null);
@@ -387,7 +387,7 @@ export default function FilesPage() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/40 px-3 py-1 text-xs font-medium opacity-80">
                 <Sparkles className="h-3.5 w-3.5 text-accent" />
-                Modern file workspace
+                Moderne bestandswerkruimte
               </div>
               <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">Bestandsbeheer</h1>
               <p className="mt-3 max-w-3xl text-sm opacity-70 sm:text-base">
@@ -399,7 +399,7 @@ export default function FilesPage() {
                   className="inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
                 >
                   <RefreshCw className="h-4 w-4" />
-                  Refresh files
+                  Bestanden verversen
                 </button>
                 <div className="rounded-2xl border border-border px-4 py-2.5 text-sm opacity-70">
                   Pad: {currentPath}
@@ -409,19 +409,19 @@ export default function FilesPage() {
 
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Folders</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Mappen</p>
                 <p className="mt-2 text-2xl font-semibold">{visibleFolders.length}</p>
-                <p className="mt-1 text-sm opacity-60">Visible in current path</p>
+                <p className="mt-1 text-sm opacity-60">Zichtbaar in huidig pad</p>
               </div>
               <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Files</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Bestanden</p>
                 <p className="mt-2 text-2xl font-semibold">{visibleFiles.length}</p>
-                <p className="mt-1 text-sm opacity-60">Items in this folder</p>
+                <p className="mt-1 text-sm opacity-60">Items in deze map</p>
               </div>
               <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Storage</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Opslag</p>
                 <p className="mt-2 text-2xl font-semibold">{formatBytes(folderStorageBytes)}</p>
-                <p className="mt-1 text-sm opacity-60">Current folder footprint</p>
+                <p className="mt-1 text-sm opacity-60">Huidige mapgrootte</p>
               </div>
             </div>
           </div>
@@ -447,8 +447,8 @@ export default function FilesPage() {
                 <HardDrive className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold">Path navigation</h2>
-                <p className="mt-1 text-sm opacity-65">Browse through folders and jump directly to any breadcrumb level.</p>
+                <h2 className="text-lg font-semibold">Padnavigatie</h2>
+                <p className="mt-1 text-sm opacity-65">Blader door mappen en spring direct naar elk breadcrumb-niveau.</p>
               </div>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -458,7 +458,7 @@ export default function FilesPage() {
                   currentFolderId === null ? "bg-accent/20 font-medium text-accent" : "border border-border hover:bg-card/70"
                 }`}
               >
-                Home
+                Start
               </button>
               {breadcrumbs.map((crumb, i) => {
                 const folderForCrumb = folders.find((f) => f.path === "/" + breadcrumbs.slice(0, i + 1).join("/"));
@@ -483,18 +483,18 @@ export default function FilesPage() {
                 <FolderPlus className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold">Create folder</h2>
-                <p className="mt-1 text-sm opacity-65">Add a new folder inside the current location.</p>
+                <h2 className="text-lg font-semibold">Map aanmaken</h2>
+                <p className="mt-1 text-sm opacity-65">Voeg een nieuwe map toe in de huidige locatie.</p>
               </div>
             </div>
             <div className="mt-4 flex gap-2">
               <input
                 value={newFolder}
                 onChange={(e) => setNewFolder(e.target.value)}
-                placeholder="New folder name"
+                placeholder="Nieuwe mapnaam"
                 className="flex-1 rounded-2xl border border-border bg-transparent px-3 py-2.5"
               />
-              <button className="rounded-2xl bg-accent/80 px-4 py-2.5 text-white">Create</button>
+              <button className="rounded-2xl bg-accent/80 px-4 py-2.5 text-white">Aanmaken</button>
             </div>
           </form>
         </div>
@@ -502,8 +502,8 @@ export default function FilesPage() {
         <section className="glass sticky top-[92px] z-10 rounded-[1.75rem] p-4 backdrop-blur">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold">Search, filter and sort</p>
-              <p className="text-xs opacity-55">Refine the current folder view without changing location.</p>
+              <p className="text-sm font-semibold">Zoeken, filteren en sorteren</p>
+              <p className="text-xs opacity-55">Verfijn het huidige mapoverzicht zonder van locatie te wisselen.</p>
             </div>
             <div className="rounded-full bg-accent/15 px-3 py-1 text-xs font-medium text-accent">Live filters</div>
           </div>
@@ -527,7 +527,7 @@ export default function FilesPage() {
               <option value="video">Video</option>
               <option value="audio">Audio</option>
               <option value="pdf">PDF</option>
-              <option value="office">Office</option>
+              <option value="office">Kantoorbestanden</option>
               <option value="text">Tekst/Code</option>
             </select>
             <select
@@ -545,11 +545,11 @@ export default function FilesPage() {
         <section className="glass rounded-[2rem] p-5 sm:p-6">
           <div className="mb-5 flex items-center justify-between gap-3 border-b border-border/60 pb-5">
             <h2 className="text-lg font-semibold">
-              {currentFolder ? currentFolder.name : "My Files"}
+              {currentFolder ? currentFolder.name : "Mijn bestanden"}
             </h2>
             {currentFolder && (
               <button onClick={navigateUp} className="rounded-2xl border border-border px-3 py-2 text-sm transition hover:bg-card/70">
-                ← Back
+                ← Terug
               </button>
             )}
           </div>
@@ -572,7 +572,7 @@ export default function FilesPage() {
                   className="rounded-lg border border-border px-3 py-1 text-sm transition hover:bg-red-500/20"
                   onClick={() => deleteFolder(folder.id)}
                 >
-                  Delete
+                  Verwijderen
                 </button>
               </div>
             ))}
@@ -661,7 +661,7 @@ export default function FilesPage() {
 
             {visibleFolders.length === 0 && visibleFiles.length === 0 && (
               <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm opacity-60">
-                This folder is empty
+                Deze map is leeg
               </p>
             )}
 
@@ -690,7 +690,7 @@ export default function FilesPage() {
                   </div>
                   <div>
                     <h2 className="text-xl font-bold">{previewFile.name}</h2>
-                    <p className="mt-1 text-sm opacity-60">{previewFile.mime_type || "Unknown file type"}</p>
+                    <p className="mt-1 text-sm opacity-60">{previewFile.mime_type || "Onbekend bestandstype"}</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -704,13 +704,13 @@ export default function FilesPage() {
                     className="rounded-xl border border-border bg-card px-4 py-2 text-sm transition hover:bg-accent/10"
                     onClick={closePreview}
                   >
-                    Close
+                    Sluiten
                   </button>
                 </div>
               </div>
 
               <div className="rounded-xl border border-border bg-black/20 p-4">
-                {previewLoading && <p className="text-sm opacity-70">Loading preview...</p>}
+                {previewLoading && <p className="text-sm opacity-70">Preview laden...</p>}
                 {!previewLoading && previewError && <p className="text-sm text-red-400">{previewError}</p>}
 
                 {!previewLoading && !previewError && previewUrl && isImageFile(previewFile) && (
@@ -749,7 +749,7 @@ export default function FilesPage() {
                     </pre>
                     {previewText.length === 200000 && (
                       <p className="text-xs opacity-60 p-2 border-t border-border">
-                        File is too large. Showing first 200KB. <button onClick={() => downloadFile(previewFile)} className="underline hover:opacity-100">Download full file</button>
+                        Bestand is te groot. Eerste 200KB wordt getoond. <button onClick={() => downloadFile(previewFile)} className="underline hover:opacity-100">Volledig bestand downloaden</button>
                       </p>
                     )}
                   </div>
@@ -758,7 +758,7 @@ export default function FilesPage() {
                 {!previewLoading && !previewError && previewOfficeUrl && isOfficeFile(previewFile) && (
                   <div className="space-y-3">
                     <p className="text-xs opacity-70">
-                      Office preview gebruikt een externe viewer. Als je een fout ziet, controleer of je server publiek bereikbaar is.
+                      Office-preview gebruikt een externe kijker. Als je een fout ziet, controleer of je server publiek bereikbaar is.
                     </p>
                     <button
                       className="rounded-lg border border-border px-3 py-1 text-sm font-medium transition hover:bg-accent/10"
@@ -768,7 +768,7 @@ export default function FilesPage() {
                     </button>
                     {officePreviewFailed && (
                       <p className="text-sm text-red-300">
-                        Office viewer kon niet laden. Gebruik "Open lokaal via download".
+                        Office-kijker kon niet laden. Gebruik "Open lokaal via download".
                       </p>
                     )}
                     <iframe
@@ -777,7 +777,7 @@ export default function FilesPage() {
                       title={previewFile.name}
                       onError={() => {
                         setOfficePreviewFailed(true);
-                        setUserError("Office preview kon niet laden. Download wordt aanbevolen.");
+                        setUserError("Office-preview kon niet laden. Download wordt aanbevolen.");
                         setUserNotice("");
                       }}
                     />
@@ -786,12 +786,12 @@ export default function FilesPage() {
 
                 {!previewLoading && !previewError && !previewText && previewUrl && !isImageFile(previewFile) && !isVideoFile(previewFile) && !isAudioFile(previewFile) && !isPdfFile(previewFile) && (
                   <div className="space-y-2">
-                    <p className="text-sm opacity-70">Preview for this file type is limited.</p>
+                    <p className="text-sm opacity-70">Preview voor dit bestandstype is beperkt.</p>
                     <button
                       className="rounded-lg border border-border px-3 py-1 text-sm transition hover:bg-accent/10"
                       onClick={() => downloadFile(previewFile)}
                     >
-                      Download file
+                      Bestand downloaden
                     </button>
                   </div>
                 )}

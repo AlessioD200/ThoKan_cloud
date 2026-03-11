@@ -40,7 +40,7 @@ export default function AdminPage() {
     } catch (err) {
       setUsers([]);
       setUsage([]);
-      setError(err instanceof Error ? err.message : "Failed to load admin data");
+      setError(err instanceof Error ? err.message : "Admingegevens laden mislukt");
     }
     setLoading(false);
   }
@@ -54,17 +54,17 @@ export default function AdminPage() {
     setStatus("");
     setError("");
     try {
-      await api("/admin/users", {
+      const result = await api<{ message: string }>("/admin/users", {
         method: "POST",
         body: JSON.stringify({ email, full_name: name, password, role }),
       });
       setEmail("");
       setName("");
       setPassword("ChangeMe123!");
-      setStatus("User invited successfully");
+      setStatus(result.message || "Gebruiker aangemaakt");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to invite user");
+      setError(err instanceof Error ? err.message : "Gebruiker aanmaken mislukt");
     }
   }
 
@@ -93,11 +93,11 @@ export default function AdminPage() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/40 px-3 py-1 text-xs font-medium opacity-80">
                 <ShieldCheck className="h-3.5 w-3.5 text-accent" />
-                Administration workspace
+                Administratie
               </div>
-              <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">Admin Center</h1>
+              <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">Admin centrum</h1>
               <p className="mt-3 max-w-3xl text-sm opacity-70 sm:text-base">
-                Manage users, invitations, and storage oversight from a cleaner control surface designed for faster daily operations.
+                Beheer gebruikers, accounts en opslag vanuit een duidelijk controlepaneel voor dagelijkse operaties.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <button
@@ -106,34 +106,34 @@ export default function AdminPage() {
                   className="inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
                 >
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                  {loading ? "Refreshing..." : "Refresh admin data"}
+                  {loading ? "Verversen..." : "Admingegevens verversen"}
                 </button>
                 <div className="rounded-2xl border border-border px-4 py-2.5 text-sm opacity-70">
-                  {visibleUsers.length} filtered users visible
+                  {visibleUsers.length} gefilterde gebruikers zichtbaar
                 </div>
               </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Users</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Gebruikers</p>
                 <p className="mt-2 text-2xl font-semibold">{users.length}</p>
-                <p className="mt-1 text-sm opacity-60">Registered team members</p>
+                <p className="mt-1 text-sm opacity-60">Geregistreerde teamleden</p>
               </div>
               <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Active</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Actief</p>
                 <p className="mt-2 text-2xl font-semibold">{activeUsers}</p>
-                <p className="mt-1 text-sm opacity-60">Accounts currently enabled</p>
+                <p className="mt-1 text-sm opacity-60">Accounts momenteel actief</p>
               </div>
               <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Inactive</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Inactief</p>
                 <p className="mt-2 text-2xl font-semibold">{inactiveUsers}</p>
-                <p className="mt-1 text-sm opacity-60">Accounts needing review</p>
+                <p className="mt-1 text-sm opacity-60">Accounts voor opvolging</p>
               </div>
               <div className="rounded-[1.5rem] border border-border/70 bg-card/35 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Storage</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-45">Opslag</p>
                 <p className="mt-2 text-2xl font-semibold">{totalStorageMb >= 1024 ? `${(totalStorageMb / 1024).toFixed(2)} GB` : `${totalStorageMb} MB`}</p>
-                <p className="mt-1 text-sm opacity-60">Combined user usage</p>
+                <p className="mt-1 text-sm opacity-60">Totaal gebruik gebruikers</p>
               </div>
             </div>
           </div>
@@ -157,41 +157,41 @@ export default function AdminPage() {
                 <UserPlus className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">User access</p>
-                <h2 className="mt-1 text-xl font-semibold">Invite user</h2>
-                <p className="mt-2 text-sm opacity-65">Create a new user with a temporary password and assign the right role from the start.</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">Gebruikerstoegang</p>
+                <h2 className="mt-1 text-xl font-semibold">Gebruiker aanmaken</h2>
+                <p className="mt-2 text-sm opacity-65">Maak een gebruiker met tijdelijk wachtwoord aan. De gebruiker kan direct inloggen.</p>
               </div>
             </div>
 
             <div className="mt-5 grid gap-3 md:grid-cols-2">
               <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-medium">Email</label>
-                <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" className="w-full rounded-2xl border border-border bg-transparent px-3 py-2.5" required />
+                <label className="mb-2 block text-sm font-medium">E-mail</label>
+                <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="naam@bedrijf.com" className="w-full rounded-2xl border border-border bg-transparent px-3 py-2.5" required />
               </div>
               <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-medium">Full name</label>
+                <label className="mb-2 block text-sm font-medium">Volledige naam</label>
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" className="w-full rounded-2xl border border-border bg-transparent px-3 py-2.5" required />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium">Temporary password</label>
-                <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Temporary password" className="w-full rounded-2xl border border-border bg-transparent px-3 py-2.5" required />
+                <label className="mb-2 block text-sm font-medium">Tijdelijk wachtwoord</label>
+                <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Tijdelijk wachtwoord" className="w-full rounded-2xl border border-border bg-transparent px-3 py-2.5" required />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium">Role</label>
+                <label className="mb-2 block text-sm font-medium">Rol</label>
                 <select value={role} onChange={(e) => setRole(e.target.value)} className="w-full rounded-2xl border border-border bg-transparent px-3 py-2.5">
-                  <option value="employee">employee</option>
-                  <option value="admin">admin</option>
+                  <option value="employee">medewerker</option>
+                  <option value="admin">beheerder</option>
                 </select>
               </div>
             </div>
 
             <div className="mt-5 rounded-[1.5rem] border border-border/70 bg-card/30 p-4 text-sm opacity-70">
-              New users can sign in immediately with the temporary password and change it after first access.
+              Nieuwe gebruikers kunnen meteen inloggen met het tijdelijke wachtwoord en dit daarna wijzigen.
             </div>
 
             <button className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90">
               <UserPlus className="h-4 w-4" />
-              Send invite
+              Gebruiker aanmaken
             </button>
           </form>
 
@@ -202,9 +202,9 @@ export default function AdminPage() {
                   <Users className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">Directory</p>
-                  <h3 className="mt-1 text-xl font-semibold">Users</h3>
-                  <p className="mt-2 text-sm opacity-65">Review user accounts quickly with search and sorting controls.</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">Overzicht</p>
+                  <h3 className="mt-1 text-xl font-semibold">Gebruikers</h3>
+                  <p className="mt-2 text-sm opacity-65">Bekijk gebruikersaccounts snel met zoeken en sorteren.</p>
                 </div>
               </div>
               <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
@@ -213,7 +213,7 @@ export default function AdminPage() {
                   <input
                     value={userSearch}
                     onChange={(e) => setUserSearch(e.target.value)}
-                    placeholder="Search name or email"
+                    placeholder="Zoek naam of e-mail"
                     className="w-full rounded-2xl border border-border bg-transparent py-2.5 pl-9 pr-3 text-sm"
                   />
                 </div>
@@ -222,8 +222,8 @@ export default function AdminPage() {
                   onChange={(e) => setUserSort(e.target.value as "name" | "email")}
                   className="rounded-2xl border border-border bg-transparent px-3 py-2.5 text-sm"
                 >
-                  <option value="name">Sort by name</option>
-                  <option value="email">Sort by email</option>
+                  <option value="name">Sorteer op naam</option>
+                  <option value="email">Sorteer op e-mail</option>
                 </select>
               </div>
             </div>
@@ -236,11 +236,11 @@ export default function AdminPage() {
                     <p className="mt-1 truncate text-xs opacity-70">{u.email}</p>
                   </div>
                   <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${u.is_active ? "bg-green-500/20 text-green-300" : "bg-red-500/20 text-red-300"}`}>
-                    {u.is_active ? "active" : "inactive"}
+                    {u.is_active ? "actief" : "inactief"}
                   </span>
                 </li>
               ))}
-              {visibleUsers.length === 0 && <li className="rounded-[1.5rem] border border-dashed border-border p-5 text-center opacity-60">No users match this filter.</li>}
+              {visibleUsers.length === 0 && <li className="rounded-[1.5rem] border border-dashed border-border p-5 text-center opacity-60">Geen gebruikers gevonden voor deze filter.</li>}
             </ul>
           </section>
         </div>
@@ -251,9 +251,9 @@ export default function AdminPage() {
               <HardDrive className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">Capacity</p>
-              <h3 className="mt-1 text-xl font-semibold">Storage usage</h3>
-              <p className="mt-2 text-sm opacity-65">See which accounts consume the most storage across the cloud environment.</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">Capaciteit</p>
+              <h3 className="mt-1 text-xl font-semibold">Opslaggebruik</h3>
+              <p className="mt-2 text-sm opacity-65">Zie welke accounts het meeste opslag gebruiken in de cloudomgeving.</p>
             </div>
           </div>
           <ul className="mt-5 grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-3">
@@ -261,10 +261,10 @@ export default function AdminPage() {
               <li key={u.email} className="rounded-[1.5rem] border border-border bg-card/25 p-4">
                 <p className="truncate font-medium">{u.email}</p>
                 <p className="mt-2 text-lg font-semibold">{formatStorage(u.used_bytes)}</p>
-                <p className="mt-1 text-xs opacity-55">Current allocated usage</p>
+                <p className="mt-1 text-xs opacity-55">Huidig toegewezen gebruik</p>
               </li>
             ))}
-            {usage.length === 0 && <li className="rounded-[1.5rem] border border-dashed border-border p-5 text-center opacity-60 md:col-span-2 xl:col-span-3">No storage data available.</li>}
+            {usage.length === 0 && <li className="rounded-[1.5rem] border border-dashed border-border p-5 text-center opacity-60 md:col-span-2 xl:col-span-3">Geen opslagdata beschikbaar.</li>}
           </ul>
         </section>
       </div>

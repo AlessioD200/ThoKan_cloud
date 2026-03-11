@@ -16,7 +16,7 @@ export function UploadDropzone({ onUploaded, folderId }: { onUploaded: () => voi
       await Promise.all(Array.from(files).map((file) => uploadFile(file, folderId || undefined)));
       onUploaded();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      setError(e instanceof Error ? e.message : "Uploaden mislukt");
     } finally {
       setUploading(false);
     }
@@ -31,13 +31,13 @@ export function UploadDropzone({ onUploaded, folderId }: { onUploaded: () => voi
         handleFiles(e.dataTransfer.files);
       }}
     >
-      <p className="text-sm">Drag and drop files here</p>
+      <p className="text-sm">Sleep bestanden hierheen</p>
       <button
         className="mt-3 rounded-xl bg-accent/80 px-4 py-2 text-white"
         disabled={uploading}
         onClick={() => inputRef.current?.click()}
       >
-        {uploading ? "Uploading..." : "Select files"}
+        {uploading ? "Uploaden..." : "Bestanden selecteren"}
       </button>
       <input ref={inputRef} type="file" multiple hidden onChange={(e) => handleFiles(e.target.files)} />
       {error && <p className="mt-2 text-sm text-red-500">{error}</p>}

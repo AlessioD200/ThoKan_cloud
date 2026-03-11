@@ -9,11 +9,11 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ensureSession } from "@/lib/api";
 
 const items = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
-  { href: "/files", label: "Files", icon: Folder },
-  { href: "/mail", label: "Mail", icon: Mail },
+  { href: "/dashboard", label: "Overzicht", icon: LayoutGrid },
+  { href: "/files", label: "Bestanden", icon: Folder },
+  { href: "/mail", label: "E-mail", icon: Mail },
   { href: "/admin", label: "Admin", icon: Shield },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/settings", label: "Instellingen", icon: Settings },
 ];
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
@@ -53,7 +53,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bg">
         <div className="glass rounded-3xl px-6 py-5 text-center">
-          <p className="text-sm opacity-60">Loading...</p>
+          <p className="text-sm opacity-60">Laden...</p>
         </div>
       </div>
     );
@@ -103,15 +103,15 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">ThoKan</p>
-                  <h2 className="text-lg font-semibold">Cloud suite</h2>
+                  <h2 className="text-lg font-semibold">Cloud omgeving</h2>
                 </div>
               </div>
               <div className="mt-4 rounded-2xl border border-border/70 bg-card/40 p-3">
-                <p className="text-xs uppercase tracking-[0.2em] opacity-45">Current area</p>
+                <p className="text-xs uppercase tracking-[0.2em] opacity-45">Huidige sectie</p>
                 <div className="mt-2 flex items-center justify-between">
                   <div>
                     <p className="text-base font-semibold">{activeItem.label}</p>
-                    <p className="text-xs opacity-55">Focused workspace</p>
+                    <p className="text-xs opacity-55">Actieve werkruimte</p>
                   </div>
                   <activeItem.icon className="h-5 w-5 text-accent" />
                 </div>
@@ -146,21 +146,21 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="mt-4 rounded-[1.75rem] border border-border/70 bg-card/45 p-4">
-              <p className="text-xs uppercase tracking-[0.2em] opacity-45">Workspace tools</p>
+              <p className="text-xs uppercase tracking-[0.2em] opacity-45">Werkruimte tools</p>
               <div className="mt-3 space-y-2">
                 <ThemeToggle />
                 <button
                   onClick={handleLogout}
                   className="flex w-full items-center justify-between rounded-2xl border border-border px-3.5 py-3 text-left text-sm transition hover:bg-card/70"
                 >
-                  <span>Logout</span>
+                  <span>Uitloggen</span>
                   <LogOut className="h-4 w-4 opacity-60" />
                 </button>
               </div>
             </div>
 
             <div className="mt-auto hidden rounded-[1.75rem] border border-border/70 bg-card/35 p-4 text-sm opacity-65 lg:block">
-              Smooth access to files, mail, admin, and updates from one consistent shell.
+              Snelle toegang tot bestanden, e-mail, admin en updates vanuit één consistente omgeving.
             </div>
           </div>
         </aside>
@@ -168,11 +168,11 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           <div className="mb-4 rounded-[1.75rem] border border-border/60 bg-card/35 px-4 py-3 shadow-glass backdrop-blur sm:px-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">Workspace</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">Werkruimte</p>
                 <h1 className="text-lg font-semibold">{activeItem.label}</h1>
               </div>
               <div className="rounded-full bg-accent/15 px-3 py-1 text-xs font-medium text-accent">
-                Active
+                Actief
               </div>
             </div>
           </div>

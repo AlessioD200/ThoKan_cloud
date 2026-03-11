@@ -20,12 +20,12 @@ export default function RegisterPage() {
     setError("");
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError("Wachtwoorden komen niet overeen");
       return;
     }
 
     if (password.length < 8) {
-      setError("Password must be at least 8 characters");
+      setError("Wachtwoord moet minstens 8 tekens bevatten");
       return;
     }
 
@@ -53,7 +53,7 @@ export default function RegisterPage() {
       
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      setError(err instanceof Error ? err.message : "Registratie mislukt");
     } finally {
       setLoading(false);
     }
@@ -69,14 +69,14 @@ export default function RegisterPage() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/40 px-3 py-1 text-xs font-medium opacity-80">
                 <Sparkles className="h-3.5 w-3.5 text-accent" />
-                Start in one place
+                Start op één plek
               </div>
               <img src="/Logo_tekst_CV.png" alt="ThoKan Cloud" className="mt-6 h-16 w-auto" />
               <h1 className="mt-8 max-w-xl text-4xl font-semibold leading-tight xl:text-5xl">
-                Create your ThoKan Cloud account and get to work fast.
+                Maak je ThoKan Cloud account en ga meteen aan de slag.
               </h1>
               <p className="mt-4 max-w-xl text-base opacity-70">
-                Register once and access your dashboard, files, mailbox, and operational tools from a single workspace.
+                Registreer één keer en krijg toegang tot je overzicht, bestanden, mailbox en operationele tools.
               </p>
             </div>
 
@@ -86,7 +86,7 @@ export default function RegisterPage() {
                   <CheckCircle2 className="h-5 w-5 text-accent" />
                   <div>
                     <p className="text-sm font-medium">Quick onboarding</p>
-                    <p className="text-xs opacity-60">Account creation and sign-in happen in one flow.</p>
+                    <p className="text-xs opacity-60">Account aanmaken en inloggen gebeuren in één flow.</p>
                   </div>
                 </div>
               </div>
@@ -95,7 +95,7 @@ export default function RegisterPage() {
                   <ShieldCheck className="h-5 w-5 text-accent" />
                   <div>
                     <p className="text-sm font-medium">Professional workspace</p>
-                    <p className="text-xs opacity-60">Immediate access to the redesigned cloud surface after registration.</p>
+                    <p className="text-xs opacity-60">Direct toegang tot de vernieuwde cloudomgeving na registratie.</p>
                   </div>
                 </div>
               </div>
@@ -107,14 +107,14 @@ export default function RegisterPage() {
           <div className="w-full max-w-md">
             <div className="mb-8">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-45">Account setup</p>
-              <h2 className="mt-2 text-3xl font-semibold">Create account</h2>
-              <p className="mt-2 text-sm opacity-70">Set up your identity and enter the cloud immediately.</p>
+              <h2 className="mt-2 text-3xl font-semibold">Account aanmaken</h2>
+              <p className="mt-2 text-sm opacity-70">Stel je account in en ga meteen de cloud in.</p>
             </div>
 
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
                 <label htmlFor="fullName" className="mb-2 block text-sm font-medium">
-                  Full Name
+                  Volledige naam
                 </label>
                 <input
                   id="fullName"
@@ -145,7 +145,7 @@ export default function RegisterPage() {
 
               <div>
                 <label htmlFor="password" className="mb-2 block text-sm font-medium">
-                  Password
+                  Wachtwoord
                 </label>
                 <input
                   id="password"
@@ -161,7 +161,7 @@ export default function RegisterPage() {
 
               <div>
                 <label htmlFor="confirmPassword" className="mb-2 block text-sm font-medium">
-                  Confirm Password
+                  Bevestig wachtwoord
                 </label>
                 <input
                   id="confirmPassword"
@@ -186,7 +186,7 @@ export default function RegisterPage() {
                 disabled={loading}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-accent px-4 py-3 font-medium text-white transition hover:opacity-90 disabled:opacity-50"
               >
-                {loading ? "Creating account..." : "Create Account"}
+                {loading ? "Account aanmaken..." : "Account aanmaken"}
                 {!loading && <ArrowRight className="h-4 w-4" />}
               </button>
             </form>
@@ -194,14 +194,14 @@ export default function RegisterPage() {
             <div className="mt-6 rounded-[1.5rem] border border-border/70 bg-card/35 p-4 text-sm opacity-70">
               <div className="flex items-center gap-2">
                 <UserPlus className="h-4 w-4 text-accent" />
-                New accounts are signed in automatically after successful registration.
+                Nieuwe accounts worden automatisch ingelogd na succesvolle registratie.
               </div>
             </div>
 
             <p className="mt-6 text-center text-sm opacity-60">
-              Already have an account?{" "}
+              Heb je al een account?{" "}
               <Link href="/login" className="text-accent hover:underline">
-                Sign in
+                Inloggen
               </Link>
             </p>
           </div>
