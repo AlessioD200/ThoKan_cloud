@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import platform
 import shutil
@@ -6,7 +8,7 @@ import tarfile
 import tempfile
 import zipfile
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -235,14 +237,14 @@ def fetch_and_apply_github(
     channel = _normalize_channel(payload.channel)
     update_dir = _updates_dir()
 
-    timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     safe_branch = _safe_name(payload.branch)
     parsed = urlparse(payload.repo_url)
     repo_name = _safe_name(Path(parsed.path).stem) or "repo"
     target_name = f"{timestamp}_{channel}_{repo_name}.tar.gz"
     target_path = update_dir / target_name
 
-    started_at = datetime.now(UTC).isoformat()
+    started_at = datetime.now(timezone.utc).isoformat()
     _save_update_status(
         db,
         {
@@ -328,7 +330,7 @@ echo "[ThoKan update] Package payload applied successfully."
 
                 result = subprocess.run(["bash", str(script_path)], cwd=str(extract_path), capture_output=True, text=True, env=env, timeout=1800)
 
-                finished_at = datetime.now(UTC).isoformat()
+                finished_at = datetime.now(timezone.utc).isoformat()
                 status_payload = {
                     "state": "success" if result.returncode == 0 else "failed",
                     "package_name": target_name,
@@ -345,7 +347,7 @@ echo "[ThoKan update] Package payload applied successfully."
     except HTTPException:
         raise
     except Exception as exc:
-        finished_at = datetime.now(UTC).isoformat()
+        finished_at = datetime.now(timezone.utc).isoformat()
         status_payload = {
             "state": "failed",
             "package_name": target_name,
@@ -516,7 +518,7 @@ def list_update_packages(
                     name=item.name,
                     channel=_parse_package_channel(item.name),
                     size_bytes=stat.st_size,
-                    modified_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
+                    modified_at=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
                 )
             )
     return packages
@@ -557,7 +559,7 @@ def upload_update_package(
 
     normalized_channel = _normalize_channel(channel)
 
-    timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     target_name = f"{timestamp}_{normalized_channel}_{safe_original}"
     target_path = _updates_dir() / target_name
 
@@ -595,7 +597,7 @@ def fetch_latest_update_package(
     if not original_name or not _is_allowed_package(original_name):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Resolved package URL is not a supported archive")
 
-    timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     version_part = f"{_safe_name(version)}_" if version else ""
     target_name = f"{timestamp}_{channel}_{version_part}{original_name}"
     target_path = _updates_dir() / target_name
@@ -614,7 +616,7 @@ def fetch_latest_update_package(
         name=target_name,
         channel=channel,
         size_bytes=stat.st_size,
-        modified_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
+        modified_at=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
     )
 
 
@@ -652,7 +654,7 @@ def apply_update_package(
     extraction_base = update_dir / "extracted"
     extraction_base.mkdir(parents=True, exist_ok=True)
 
-    started_at = datetime.now(UTC).isoformat()
+    started_at = datetime.now(timezone.utc).isoformat()
     _save_update_status(
         db,
         {
@@ -736,7 +738,7 @@ def apply_update_package(
                         stderr=(result.stderr or "") + "".join(post_stderr),
                     )
 
-            finished_at = datetime.now(UTC).isoformat()
+            finished_at = datetime.now(timezone.utc).isoformat()
             status_payload = {
                 "state": "success" if result.returncode == 0 else "failed",
                 "package_name": package_name,
@@ -751,7 +753,7 @@ def apply_update_package(
             return UpdateStatus(**status_payload)
 
     except HTTPException as exc:
-        finished_at = datetime.now(UTC).isoformat()
+        finished_at = datetime.now(timezone.utc).isoformat()
         status_payload = {
             "state": "failed",
             "package_name": package_name,
@@ -765,7 +767,7 @@ def apply_update_package(
         _save_update_status(db, status_payload)
         raise
     except Exception as exc:
-        finished_at = datetime.now(UTC).isoformat()
+        finished_at = datetime.now(timezone.utc).isoformat()
         status_payload = {
             "state": "failed",
             "package_name": package_name,
