@@ -23,12 +23,17 @@ const config: CapacitorConfig = {
   server: {
     url: serverUrl,
     androidScheme: 'https',
+    iosScheme: 'https',
     cleartext: false,
     allowNavigation: resolveAllowedHosts(serverUrl),
   },
   plugins: {
     App: {
       packageName: 'com.thokan.cloud',
+    },
+    Network: {
+      // iOS specific: Reachability-based network status for better accuracy
+      // This ensures iOS reports network status correctly
     },
   },
 };

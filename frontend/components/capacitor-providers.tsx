@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { App } from '@capacitor/app';
 import { Network } from '@capacitor/network';
 import { Capacitor } from '@capacitor/core';
 
 export function CapacitorProviders() {
+  const [isNetworkReady, setIsNetworkReady] = useState(false);
+
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) {
+      setIsNetworkReady(true);
       return;
     }
 
@@ -24,17 +27,42 @@ export function CapacitorProviders() {
     let networkListener: { remove: () => Promise<void> } | undefined;
 
     const setupListeners = async () => {
-      if (Capacitor.getPlatform() === 'android') {
-        appBackButtonListener = await App.addListener('backButton', handleAppBackButton);
-      }
-
-      networkListener = await Network.addListener('networkStatusChange', (status) => {
+      try {
+        // Check initial network status on app startup
+        const status = await Network.getStatus();
         if (status.connected) {
           localStorage.setItem('isOnline', 'true');
+          console.log('[Network] Connected to thokan.cloud on startup');
         } else {
           localStorage.setItem('isOnline', 'false');
+          console.warn('[Network] No connection available at startup');
         }
-      });
+
+        if (Capacitor.getPlatform() === 'android') {
+          appBackButtonListener = await App.addListener('backButton', handleAppBackButton);
+        }
+
+        // Listen for network changes
+        networkListener = await Network.addListener('networkStatusChange', (status) => {
+          if (status.connected) {
+            localStorage.setItem('isOnline', 'true');
+            console.log('[Network] Connected to thokan.cloud');
+            // Trigger potential auth refresh or data sync on reconnection
+            window.dispatchEvent(new CustomEvent('network-online'));
+          } else {
+            localStorage.setItem('isOnline', 'false');
+            console.warn('[Network] Disconnected from thokan.cloud');
+            window.dispatchEvent(new CustomEvent('network-offline'));
+          }
+        });
+
+        setIsNetworkReady(true);
+      } catch (error) {
+        console.error('[Network] Setup error:', error);
+        // Assume online if we can't check network status
+        localStorage.setItem('isOnline', 'true');
+        setIsNetworkReady(true);
+      }
     };
 
     void setupListeners();
