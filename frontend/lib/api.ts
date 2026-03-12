@@ -61,49 +61,7 @@ function csrfToken() {
   return match ? decodeURIComponent(match[1]) : "";
 }
 
-let refreshInFlight: Promise<boolean> | null = null;
-
-async function doRefreshAccessToken(): Promise<boolean> {
-  try {
-    const refresh_token = localStorage.getItem("refresh_token");
-    if (!refresh_token) return false;
-
-    const headers = new Headers();
-    headers.set("Content-Type", "application/json");
-
-    const response = await fetch(`${getApiBase()}/auth/refresh`, {
-      method: "POST",
-      headers,
-      credentials: "include",
-      cache: "no-store",
-      body: JSON.stringify({ refresh_token }),
-    });
-
-    if (!response.ok) {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
-      return false;
-    }
-
-    const data = await response.json();
-    localStorage.setItem("access_token", data.access_token);
-    localStorage.setItem("refresh_token", data.refresh_token);
-    return true;
-  } catch {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    return false;
-  }
-}
-
-async function refreshAccessToken(): Promise<boolean> {
-  if (!refreshInFlight) {
-    refreshInFlight = doRefreshAccessToken().finally(() => {
-      refreshInFlight = null;
-    });
-  }
-  return refreshInFlight;
-}
+// No refresh-token flow: access tokens are long-lived and users remain logged in until they log out.
 
 export async function apiRaw(path: string, options?: RequestInit): Promise<Response> {
   const headers = new Headers(options?.headers);
@@ -130,30 +88,9 @@ export async function apiRaw(path: string, options?: RequestInit): Promise<Respo
   }
 
   if (response.status === 401) {
-    const refreshed = await refreshAccessToken();
-    if (!refreshed) {
-      throw new Error("Session expired. Please log in again.");
-    }
-
-    const retryHeaders = new Headers(options?.headers);
-    const newAuth = authHeaders();
-    if (newAuth.Authorization) {
-      retryHeaders.set("Authorization", newAuth.Authorization);
-    }
-    if (csrf && (options?.method || "GET").toUpperCase() !== "GET") {
-      retryHeaders.set("x-csrf-token", csrf);
-    }
-
-    try {
-      response = await fetch(`${getApiBase()}${path}`, {
-        ...options,
-        headers: retryHeaders,
-        credentials: "include",
-        cache: "no-store",
-      });
-    } catch (error) {
-      throw normalizeFetchError(error);
-    }
+    // No refresh flow: treat 401 as session invalid and require re-login
+    localStorage.removeItem("access_token");
+    throw new Error("Session expired. Please log in again.");
   }
 
   if (!response.ok) {
@@ -189,33 +126,9 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
     throw normalizeFetchError(error);
   }
 
-  // If 401, try refreshing token and retry once
   if (response.status === 401) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      const retryHeaders = new Headers(options?.headers);
-      retryHeaders.set("Content-Type", "application/json");
-      const newAuth = authHeaders();
-      if (newAuth.Authorization) {
-        retryHeaders.set("Authorization", newAuth.Authorization);
-      }
-      if (csrf && (options?.method || "GET").toUpperCase() !== "GET") {
-        retryHeaders.set("x-csrf-token", csrf);
-      }
-
-      try {
-        response = await fetch(`${getApiBase()}${path}`, {
-          ...options,
-          headers: retryHeaders,
-          credentials: "include",
-          cache: "no-store",
-        });
-      } catch (error) {
-        throw normalizeFetchError(error);
-      }
-    } else {
-      throw new Error("Session expired. Please log in again.");
-    }
+    localStorage.removeItem("access_token");
+    throw new Error("Session expired. Please log in again.");
   }
 
   if (!response.ok) {
@@ -252,34 +165,9 @@ export async function uploadFile(file: File, folderId?: string) {
     throw normalizeFetchError(error);
   }
 
-  // If 401, try refreshing token and retry once
   if (response.status === 401) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      const retryHeaders = new Headers();
-      const newToken = localStorage.getItem("access_token");
-      if (newToken) {
-        retryHeaders.set("Authorization", `Bearer ${newToken}`);
-      }
-      if (csrf) {
-        retryHeaders.set("x-csrf-token", csrf);
-      }
-
-      const formData2 = new FormData();
-      formData2.append("upload", file);
-      try {
-        response = await fetch(`${getApiBase()}/files/upload${query}`, {
-          method: "POST",
-          headers: retryHeaders,
-          credentials: "include",
-          body: formData2,
-        });
-      } catch (error) {
-        throw normalizeFetchError(error);
-      }
-    } else {
-      throw new Error("Session expired. Please log in again.");
-    }
+    localStorage.removeItem("access_token");
+    throw new Error("Session expired. Please log in again.");
   }
 
   if (!response.ok) {
@@ -296,8 +184,7 @@ export async function ensureSession(): Promise<boolean> {
   }
 
   const accessToken = localStorage.getItem("access_token");
-  const refreshToken = localStorage.getItem("refresh_token");
-  if (!accessToken && !refreshToken) {
+  if (!accessToken) {
     return false;
   }
 
@@ -309,7 +196,6 @@ export async function ensureSession(): Promise<boolean> {
       sessionStorage.setItem("auth_notice", "Sessie verlopen. Log opnieuw in om verder te gaan.");
     }
     localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
     return false;
   }
 }

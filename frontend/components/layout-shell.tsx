@@ -46,7 +46,6 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
 
   function handleLogout() {
     localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
     router.replace("/login");
   }
 

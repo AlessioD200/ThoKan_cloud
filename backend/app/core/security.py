@@ -18,11 +18,11 @@ def verify_password(password: str, password_hash: str) -> bool:
     return pwd_context.verify(password, password_hash)
 
 
-def create_access_token(subject: str, roles: list[str]) -> tuple[str, datetime]:
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_access_expires_min)
-    payload = {"sub": subject, "roles": roles, "exp": expires_at}
+def create_access_token(subject: str, roles: list[str]) -> str:
+    # Create access token without expiration so users remain logged in until they explicitly log out.
+    payload = {"sub": subject, "roles": roles}
     token = jwt.encode(payload, settings.jwt_access_secret, algorithm="HS256")
-    return token, expires_at
+    return token
 
 
 def create_refresh_token(subject: str) -> tuple[str, datetime]:

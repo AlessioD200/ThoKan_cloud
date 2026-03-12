@@ -8,8 +8,6 @@ from sqlalchemy.orm import Session
 
 from app.core.security import (
     create_access_token,
-    create_refresh_token,
-    decode_refresh_token,
     generate_random_token,
     hash_password,
     hash_token,
@@ -17,12 +15,11 @@ from app.core.security import (
 )
 from app.db.session import get_db
 from app.deps import get_current_user, get_user_roles
-from app.models import PasswordResetToken, RefreshToken, Role, User, UserRole
+from app.models import PasswordResetToken, Role, User, UserRole
 from app.schemas.api import (
     LoginRequest,
     PasswordResetConfirmRequest,
     PasswordResetRequest,
-    RefreshRequest,
     TokenResponse,
     UserCreateRequest,
     UserResponse,
@@ -91,21 +88,13 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             if not pyotp.TOTP(user.two_factor_secret).verify(payload.totp_code, valid_window=1):
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid 2FA code")
 
-        roles = get_user_roles(db, user.id)
-        access_token, access_expires_at = create_access_token(str(user.id), roles)
-        refresh_token, refresh_expires_at = create_refresh_token(str(user.id))
-        db.add(
-            RefreshToken(
-                user_id=user.id,
-                token_hash=hash_token(refresh_token),
-                expires_at=refresh_expires_at,
-            )
-        )
-        user.last_login_at = datetime.now(timezone.utc)
-        db.commit()
+            roles = get_user_roles(db, user.id)
+            access_token = create_access_token(str(user.id), roles)
+            user.last_login_at = datetime.now(timezone.utc)
+            db.commit()
 
-        log_event(db, "auth.login", actor_user_id=user.id, entity_type="user", entity_id=user.id)
-        return TokenResponse(access_token=access_token, refresh_token=refresh_token, expires_at=access_expires_at)
+            log_event(db, "auth.login", actor_user_id=user.id, entity_type="user", entity_id=user.id)
+            return TokenResponse(access_token=access_token)
     except HTTPException:
         raise
     except Exception:
@@ -114,31 +103,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Login failed")
 
 
-@router.post("/refresh", response_model=TokenResponse)
-def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
-    try:
-        decoded = decode_refresh_token(payload.refresh_token)
-        user_id = decoded["sub"]
-    except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token") from exc
-
-    token_hash = hash_token(payload.refresh_token)
-    row = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash, RefreshToken.revoked_at.is_(None)).first()
-    if not row or row.expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
-
-    user = db.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-
-    row.revoked_at = datetime.now(timezone.utc)
-    roles = get_user_roles(db, user.id)
-    access_token, access_expires_at = create_access_token(str(user.id), roles)
-    new_refresh_token, refresh_expires_at = create_refresh_token(str(user.id))
-    db.add(RefreshToken(user_id=user.id, token_hash=hash_token(new_refresh_token), expires_at=refresh_expires_at))
-    db.commit()
-
-    return TokenResponse(access_token=access_token, refresh_token=new_refresh_token, expires_at=access_expires_at)
+# Refresh endpoint removed: this application uses long-lived access tokens without refresh tokens.
 
 
 @router.get("/me", response_model=UserResponse)

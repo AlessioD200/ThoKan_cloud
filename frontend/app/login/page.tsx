@@ -28,13 +28,12 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await api<{ access_token: string; refresh_token: string }>("/auth/login", {
+      const response = await api<{ access_token: string }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
 
       localStorage.setItem("access_token", response.access_token);
-      localStorage.setItem("refresh_token", response.refresh_token);
       sessionStorage.removeItem("auth_notice");
       
       router.push("/dashboard");
