@@ -5,7 +5,6 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from starlette.middleware.gzip import GZipMiddleware
-from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.router import api_router
 from app.core.config import settings
@@ -32,7 +31,6 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(SlowAPIMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
-    app.add_middleware(SessionMiddleware, secret_key=settings.csrf_secret)
     app.add_middleware(CSRFMiddleware)
 
     @app.get("/health")

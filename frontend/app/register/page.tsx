@@ -43,13 +43,12 @@ export default function RegisterPage() {
       });
 
       // Auto-login after registration
-      const loginResponse = await api<{ access_token: string; refresh_token: string }>("/auth/login", {
+      const loginResponse = await api<{ access_token: string }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
 
       localStorage.setItem("access_token", loginResponse.access_token);
-      localStorage.setItem("refresh_token", loginResponse.refresh_token);
       
       router.push("/dashboard");
     } catch (err) {
