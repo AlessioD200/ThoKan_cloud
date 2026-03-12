@@ -95,6 +95,14 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
             log_event(db, "auth.login", actor_user_id=user.id, entity_type="user", entity_id=user.id)
             return TokenResponse(access_token=access_token)
+        # Non-2FA login: issue token and return
+        roles = get_user_roles(db, user.id)
+        access_token = create_access_token(str(user.id), roles)
+        user.last_login_at = datetime.now(timezone.utc)
+        db.commit()
+
+        log_event(db, "auth.login", actor_user_id=user.id, entity_type="user", entity_id=user.id)
+        return TokenResponse(access_token=access_token)
     except HTTPException:
         raise
     except Exception:
