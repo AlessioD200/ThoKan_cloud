@@ -11,8 +11,7 @@ function resolveApiBase() {
   }
 
   if (typeof window !== "undefined") {
-    const hostname = window.location.hostname || "localhost";
-    return `http://${hostname}:8000/api/v1`;
+    return `${window.location.origin}/api/v1`;
   }
 
   return "http://localhost:8000/api/v1";
@@ -24,7 +23,7 @@ export function getApiBase() {
 
 function normalizeFetchError(error: unknown): Error {
   if (error instanceof TypeError && /fetch/i.test(error.message)) {
-    return new Error("Cannot reach API server. Check backend URL/CORS and that port 8000 is running.");
+    return new Error("Cannot reach API server. Check backend URL, proxy routing, CORS, and that the API is running.");
   }
   return error instanceof Error ? error : new Error("Request failed");
 }
