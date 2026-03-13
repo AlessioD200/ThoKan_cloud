@@ -253,8 +253,7 @@ export default function SettingsPage() {
   const [mailBusy, setMailBusy] = useState(false);
   const [mailTestBusy, setMailTestBusy] = useState(false);
   const [canConfigureGlobal, setCanConfigureGlobal] = useState(false);
-  const [sectionFilter, setSectionFilter] = useState<"all" | "info" | "mail" | "api" | "updates">("all");
-  const [sectionSearch, setSectionSearch] = useState("");
+  const [sectionFilter, setSectionFilter] = useState<"info" | "mail" | "api">("info");
 
   useEffect(() => {
     loadInfo();
@@ -775,26 +774,6 @@ export default function SettingsPage() {
     return "bg-green-500";
   }
 
-  const visibleSectionCount = useMemo(() => {
-    const query = sectionSearch.trim().toLowerCase();
-    const sections = [
-      { key: "info", title: "Systeeminformatie" },
-      { key: "info", title: "Huidige opslag" },
-      { key: "info", title: "Beschikbare mount points" },
-      { key: "mail", title: "Mail instellingen" },
-      { key: "api", title: "API instellingen: Shopify" },
-      { key: "api", title: "API instellingen: Shopify website-chat bridge" },
-      { key: "api", title: "API instellingen: Gelato" },
-      { key: "updates", title: "Systeemupdates" },
-    ];
-
-    return sections.filter((section) => {
-      if (sectionFilter !== "all" && section.key !== sectionFilter) return false;
-      if (!query) return true;
-      return section.title.toLowerCase().includes(query);
-    }).length;
-  }, [sectionFilter, sectionSearch]);
-
   const channelPackages = useMemo(() => {
     return packages.filter((pkg) => {
       if (!pkg.channel || pkg.channel === "manual") return true;
@@ -802,15 +781,9 @@ export default function SettingsPage() {
     });
   }, [packages, updateChannel]);
 
-  function shouldShowSection(sectionKey: "info" | "mail" | "api" | "updates", title: string): boolean {
-    if (sectionFilter !== "all" && sectionFilter !== sectionKey) return false;
-    const query = sectionSearch.trim().toLowerCase();
-    if (!query) return true;
-    return title.toLowerCase().includes(query);
+  function shouldShowSection(sectionKey: "info" | "mail" | "api"): boolean {
+    return sectionFilter === sectionKey;
   }
-
-  const configuredIntegrations = Number(shopifyHasToken) + Number(gelatoHasKey);
-  const activeStorageUsage = info?.storage.percent_used ?? 0;
 
   return (
     <LayoutShell>
@@ -821,7 +794,6 @@ export default function SettingsPage() {
             <button
               onClick={() => {
                 setSectionFilter("info");
-                setSectionSearch("");
               }}
               className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${sectionFilter === "info" ? "bg-accent/15 text-accent" : "hover:bg-card/40"}`}
             >
@@ -831,7 +803,6 @@ export default function SettingsPage() {
             <button
               onClick={() => {
                 setSectionFilter("mail");
-                setSectionSearch("");
               }}
               className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${sectionFilter === "mail" ? "bg-accent/15 text-accent" : "hover:bg-card/40"}`}
             >
@@ -841,111 +812,38 @@ export default function SettingsPage() {
             <button
               onClick={() => {
                 setSectionFilter("api");
-                setSectionSearch("");
               }}
               className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${sectionFilter === "api" ? "bg-accent/15 text-accent" : "hover:bg-card/40"}`}
             >
               <Store className="h-4 w-4" />
               Integraties
             </button>
-            <button
-              onClick={() => {
-                setSectionFilter("updates");
-                setSectionSearch("");
-              }}
-              className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${sectionFilter === "updates" ? "bg-accent/15 text-accent" : "hover:bg-card/40"}`}
-            >
-              <PackageCheck className="h-4 w-4" />
-              Updates
-            </button>
-            <button
-              onClick={() => {
-                setSectionFilter("all");
-                setSectionSearch("");
-              }}
-              className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${sectionFilter === "all" ? "bg-accent/15 text-accent" : "hover:bg-card/40"}`}
-            >
-              <Boxes className="h-4 w-4" />
-              Alles tonen
-            </button>
           </div>
         </aside>
 
         <div className="space-y-5">
-        <section className="glass overflow-hidden rounded-[2rem] p-5 sm:p-6">
-          <div className="grid gap-5 lg:grid-cols-[1.3fr_0.9fr] lg:items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/40 px-3 py-1 text-xs font-medium opacity-80">
-                <WandSparkles className="h-3.5 w-3.5 text-accent" />
-                Verfijnd systeemcontrolecentrum
-              </div>
-              <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">Systeeminstellingen</h1>
-              <p className="mt-3 max-w-3xl text-sm opacity-70 sm:text-base">
-                Beheer infrastructuur, opslag, integraties en updateworkflows vanuit een heldere professionele instellingenervaring.
-              </p>
-              <div className="mt-5 flex flex-wrap gap-3">
-                <button
-                  onClick={() => {
-                    loadInfo();
-                    loadUpdateData();
-                    loadUpdateConfig();
-                    loadShopifyConfig();
-                    loadShopifyWebsiteChatBridgeConfig();
-                    loadGelatoConfig();
-                    loadMailConfig();
-                    loadAptStatus();
-                  }}
-                  disabled={loading}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
-                >
-                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                  {loading ? "Verversen..." : "Instellingen verversen"}
-                </button>
-                <div className="inline-flex items-center gap-2 rounded-2xl border border-border px-4 py-2.5 text-sm opacity-75">
-                  <Cog className="h-4 w-4" />
-                  {visibleSectionCount} visible sections
-                </div>
-              </div>
+          <section className="glass overflow-hidden rounded-[1.75rem] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h1 className="text-xl font-semibold">Instellingen</h1>
+              <button
+                onClick={() => {
+                  loadInfo();
+                  loadUpdateData();
+                  loadUpdateConfig();
+                  loadShopifyConfig();
+                  loadShopifyWebsiteChatBridgeConfig();
+                  loadGelatoConfig();
+                  loadMailConfig();
+                  loadAptStatus();
+                }}
+                disabled={loading}
+                className="inline-flex items-center gap-2 rounded-xl bg-accent px-3 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                {loading ? "Verversen..." : "Verversen"}
+              </button>
             </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <StatCard label="Zichtbaar" value={visibleSectionCount} hint="Secties die overeenkomen met huidige filters" />
-              <StatCard label="Mounts" value={info?.available_mounts?.length || 0} hint="Gedetecteerde opslagdoelen" />
-              <StatCard label="API koppelingen" value={configuredIntegrations} hint="Gekoppelde externe diensten" />
-              <StatCard label="Opslag" value={`${activeStorageUsage.toFixed(0)}%`} hint="Huidig schijfgebruik" />
-            </div>
-          </div>
-        </section>
-
-        <section className="glass sticky top-3 z-20 rounded-[1.75rem] p-4 backdrop-blur">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold">Vind sneller de juiste instelling</p>
-              <p className="text-xs opacity-55">Filter op onderdeel of zoek op sectienaam.</p>
-            </div>
-            <div className="rounded-full bg-accent/15 px-3 py-1 text-xs font-medium text-accent">Professionele weergave</div>
-          </div>
-          <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-            <input
-              type="text"
-              value={sectionSearch}
-              onChange={(e) => setSectionSearch(e.target.value)}
-              placeholder="Zoek sectie (systeem, opslag, mail, api, updates)"
-              className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
-            />
-            <select
-              value={sectionFilter}
-              onChange={(e) => setSectionFilter(e.target.value as "all" | "info" | "mail" | "api" | "updates")}
-              className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
-            >
-              <option value="all">Alle secties</option>
-              <option value="info">Info</option>
-              <option value="mail">Mail</option>
-              <option value="api">API</option>
-              <option value="updates">Updates</option>
-            </select>
-          </div>
-        </section>
+          </section>
 
         {status && (
           <div className="glass rounded-[1.5rem] border border-border/70 bg-card/50 p-4 text-sm">
@@ -953,7 +851,7 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {shouldShowSection("info", "Systeeminformatie") && (
+        {shouldShowSection("info") && (
         <SectionShell
           icon={<Server className="h-5 w-5" />}
           eyebrow="Kern"
@@ -981,7 +879,7 @@ export default function SettingsPage() {
         </SectionShell>
         )}
 
-        {shouldShowSection("info", "Huidige opslag") && (
+        {shouldShowSection("info") && (
         <SectionShell
           icon={<HardDrive className="h-5 w-5" />}
           eyebrow="Opslag"
@@ -1037,7 +935,7 @@ export default function SettingsPage() {
         </SectionShell>
         )}
 
-        {shouldShowSection("info", "Beschikbare mount points") && (
+        {shouldShowSection("info") && (
         <SectionShell
           icon={<Boxes className="h-5 w-5" />}
           eyebrow="Opslag"
@@ -1100,7 +998,7 @@ export default function SettingsPage() {
         </SectionShell>
         )}
 
-        {shouldShowSection("mail", "Mail instellingen") && mailConfig && (
+        {shouldShowSection("mail") && mailConfig && (
         <SectionShell
           icon={<Mail className="h-5 w-5" />}
           eyebrow="Mail"
@@ -1245,7 +1143,7 @@ export default function SettingsPage() {
         </SectionShell>
         )}
 
-        {shouldShowSection("api", "API instellingen: Shopify") && (
+        {shouldShowSection("api") && (
         <SectionShell
           icon={<Store className="h-5 w-5" />}
           eyebrow="API"
@@ -1476,7 +1374,7 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
         </SectionShell>
         )}
 
-        {shouldShowSection("api", "API instellingen: Gelato") && (
+        {shouldShowSection("api") && (
         <SectionShell
           icon={<ShoppingBag className="h-5 w-5" />}
           eyebrow="API"
@@ -1547,10 +1445,10 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
         </SectionShell>
         )}
 
-        {shouldShowSection("updates", "Systeemupdates") && (
+        {shouldShowSection("info") && (
         <SectionShell
           icon={<PackageCheck className="h-5 w-5" />}
-          eyebrow="Updates"
+          eyebrow="Info"
           title="Systeemupdates"
           description="Controleer GitHub-gepubliceerde stable- of beta-updates, download ze naar de server en installeer ze gecontroleerd."
           aside={
@@ -1805,11 +1703,6 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
         </SectionShell>
         )}
 
-        {visibleSectionCount === 0 && (
-          <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm opacity-60">
-            Geen instellingensecties komen overeen met dit filter.
-          </div>
-        )}
         </div>
       </div>
     </LayoutShell>
