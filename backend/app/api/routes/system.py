@@ -29,7 +29,7 @@ UPDATE_CONFIG_KEY = "system_update_config"
 DEFAULT_GITHUB_UPDATE_REPO = "AlessioD200/ThoKan_cloud"
 DEFAULT_GITHUB_UPDATE_BRANCH = "update-channel"
 TARGET_INSTALL_ROOT = Path("/opt/thokan-cloud")
-PRODUCTION_DOCKER_UPDATE_COMMAND = "if command -v docker >/dev/null 2>&1; then docker restart \"$(hostname)\" && echo '[ThoKan update] backend herstart via docker restart'; else echo '[ThoKan update] docker command not found, skipping backend restart.'; fi"
+PRODUCTION_DOCKER_UPDATE_COMMAND = "if [ -f docker-compose.prod.yml ]; then if docker compose version >/dev/null 2>&1; then docker compose -f docker-compose.prod.yml up -d --build; elif command -v docker-compose >/dev/null 2>&1; then docker-compose -f docker-compose.prod.yml up -d --build; else echo '[ThoKan update] docker compose not found'; exit 1; fi; elif [ -f compose.yml ] || [ -f docker-compose.yml ]; then if docker compose version >/dev/null 2>&1; then docker compose up -d --build; elif command -v docker-compose >/dev/null 2>&1; then docker-compose up -d --build; else echo '[ThoKan update] docker compose not found'; exit 1; fi; else echo '[ThoKan update] no compose file found'; exit 1; fi"
 NOTES_CACHE_KEY = "update_notes_cache"
 VERSION_CACHE_KEY = "update_version_cache"
 INSTALLED_UPDATE_KEY = "system_update_installed"
@@ -949,7 +949,7 @@ def apply_update_package(
                 env=env,
             )
 
-            auto_rebuild_docker = cfg.get("auto_rebuild_docker", True) if payload.auto_rebuild_docker is None else payload.auto_rebuild_docker
+            auto_rebuild_docker = True
             auto_update_ubuntu = cfg.get("auto_update_ubuntu", False) if payload.auto_update_ubuntu is None else payload.auto_update_ubuntu
 
             post_stdout: list[str] = []

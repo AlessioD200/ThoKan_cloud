@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,13 +9,14 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.security import generate_random_token, hash_password, hash_token, verify_password
+from app.core.config import settings
 from app.db.session import get_db
 from app.deps import get_current_user
 from app.models import File, FileVersion, SharedLink, SharedWithUser, User
 from app.schemas.api import ShareLinkRequest, ShareLinkResponse, ShareUserRequest
 from app.services.audit import log_event
 from app.services.encryption import decrypt_bytes
-from app.services.storage import get_storage_driver
+from app.services.storage import LocalStorageDriver, get_storage_driver
 
 router = APIRouter()
 
@@ -46,13 +48,39 @@ def _candidate_storage_keys_for_file(db: Session, file: File) -> list[str]:
         db.query(FileVersion)
         .filter(FileVersion.file_id == file.id)
         .order_by(FileVersion.version_number.desc())
-        .limit(5)
         .all()
     )
     for version in recent_versions:
         _add(version.storage_key)
 
     return keys
+
+
+def _read_encrypted_with_recovery(driver: object, candidate_keys: list[str]) -> bytes:
+    last_read_error: Exception | None = None
+    for storage_key in candidate_keys:
+        try:
+            return driver.read(storage_key)
+        except FileNotFoundError as exc:
+            last_read_error = exc
+            continue
+        except Exception as exc:  # noqa: BLE001
+            last_read_error = exc
+            continue
+
+    if isinstance(driver, LocalStorageDriver):
+        root = Path(settings.storage_local_root)
+        basenames = [Path(key).name for key in candidate_keys if key]
+        for basename in basenames:
+            if not basename:
+                continue
+            for match in root.rglob(basename):
+                if match.is_file():
+                    return match.read_bytes()
+
+    if isinstance(last_read_error, FileNotFoundError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stored file content not found") from last_read_error
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to read stored file content") from last_read_error
 
 
 @router.post("/files/{file_id}/users")
@@ -130,23 +158,8 @@ def download_by_share_link(token: str, password: str | None = None, db: Session 
     if not file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
-    encrypted: bytes | None = None
-    last_read_error: Exception | None = None
-    for storage_key in _candidate_storage_keys_for_file(db, file):
-        try:
-            encrypted = get_storage_driver().read(storage_key)
-            break
-        except FileNotFoundError as exc:
-            last_read_error = exc
-            continue
-        except Exception as exc:  # noqa: BLE001
-            last_read_error = exc
-            continue
-
-    if encrypted is None:
-        if isinstance(last_read_error, FileNotFoundError):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stored file content not found") from last_read_error
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to read stored file content") from last_read_error
+    driver = get_storage_driver()
+    encrypted = _read_encrypted_with_recovery(driver, _candidate_storage_keys_for_file(db, file))
 
     try:
         raw = decrypt_bytes(encrypted, file.encryption_iv) if file.encryption_iv else encrypted

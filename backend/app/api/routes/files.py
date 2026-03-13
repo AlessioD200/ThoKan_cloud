@@ -4,6 +4,7 @@ import hashlib
 import mimetypes
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File as UploadFileField, HTTPException, UploadFile, status
@@ -13,6 +14,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.security import decode_access_token
+from app.core.config import settings
 from app.db.session import get_db
 from app.deps import get_current_user, get_user_roles
 from app.models import File, FileVersion, Folder, User
@@ -20,7 +22,7 @@ from app.schemas.api import FileResponse, MoveRequest, RenameRequest
 from app.services.audit import log_event
 from app.services.encryption import decrypt_bytes, encrypt_bytes
 from app.services.scanner import scan_file_bytes
-from app.services.storage import get_storage_driver
+from app.services.storage import LocalStorageDriver, get_storage_driver
 
 router = APIRouter()
 optional_bearer = HTTPBearer(auto_error=False)
@@ -53,13 +55,39 @@ def _candidate_storage_keys_for_file(db: Session, row: File) -> list[str]:
         db.query(FileVersion)
         .filter(FileVersion.file_id == row.id)
         .order_by(FileVersion.version_number.desc())
-        .limit(5)
         .all()
     )
     for version in recent_versions:
         _add(version.storage_key)
 
     return keys
+
+
+def _read_encrypted_with_recovery(driver: object, candidate_keys: list[str]) -> bytes:
+    last_read_error: Exception | None = None
+    for storage_key in candidate_keys:
+        try:
+            return driver.read(storage_key)
+        except FileNotFoundError as exc:
+            last_read_error = exc
+            continue
+        except Exception as exc:  # noqa: BLE001
+            last_read_error = exc
+            continue
+
+    if isinstance(driver, LocalStorageDriver):
+        root = Path(settings.storage_local_root)
+        basenames = [Path(key).name for key in candidate_keys if key]
+        for basename in basenames:
+            if not basename:
+                continue
+            for match in root.rglob(basename):
+                if match.is_file():
+                    return match.read_bytes()
+
+    if isinstance(last_read_error, FileNotFoundError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stored file content not found") from last_read_error
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to read stored file content") from last_read_error
 
 
 def _is_admin(db: Session, user: User) -> bool:
@@ -180,23 +208,8 @@ def download_file(
     if row.owner_id != current_user.id and not _is_admin(db, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
-    encrypted: bytes | None = None
-    last_read_error: Exception | None = None
-    for storage_key in _candidate_storage_keys_for_file(db, row):
-        try:
-            encrypted = get_storage_driver().read(storage_key)
-            break
-        except FileNotFoundError as exc:
-            last_read_error = exc
-            continue
-        except Exception as exc:  # noqa: BLE001
-            last_read_error = exc
-            continue
-
-    if encrypted is None:
-        if isinstance(last_read_error, FileNotFoundError):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stored file content not found") from last_read_error
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to read stored file content") from last_read_error
+    driver = get_storage_driver()
+    encrypted = _read_encrypted_with_recovery(driver, _candidate_storage_keys_for_file(db, row))
 
     try:
         raw = decrypt_bytes(encrypted, row.encryption_iv) if row.encryption_iv else encrypted
