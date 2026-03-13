@@ -288,7 +288,7 @@ export default function SettingsPage() {
   function shouldForceReloginAfterRebuild(result: UpdateStatus | null): boolean {
     if (!result || result.state !== "success") return false;
     if (dryRun) return false;
-    return Boolean(updateConfig?.auto_rebuild_docker ?? true);
+    return true;
   }
 
   function forceReloginAfterRebuild() {

@@ -193,6 +193,19 @@ def _normalize_channel(value: str | None) -> str:
     return channel if channel in {"stable", "beta"} else "stable"
 
 
+def _normalize_version_for_compare(value: str | None) -> str | None:
+    if not value:
+        return None
+    normalized = str(value).strip().lower()
+    if not normalized:
+        return None
+    if normalized.startswith("v"):
+        normalized = normalized[1:]
+    if "+" in normalized:
+        normalized = normalized.split("+", 1)[0]
+    return normalized or None
+
+
 def _updates_dir() -> Path:
     root = Path(settings.storage_local_root) / "_system_updates"
     root.mkdir(parents=True, exist_ok=True)
@@ -742,7 +755,9 @@ def check_latest_update(
     _package_url, version, notes = _resolve_source_url(source_url)
     installed = _get_installed_update(db)
     installed_version = installed.get("installed_version")
-    up_to_date = bool(version and installed_version and version == installed_version)
+    latest_norm = _normalize_version_for_compare(version)
+    installed_norm = _normalize_version_for_compare(installed_version)
+    up_to_date = bool(latest_norm and installed_norm and latest_norm == installed_norm)
     return {
         "channel": channel,
         "version": version,
