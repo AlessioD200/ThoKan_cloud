@@ -41,3 +41,9 @@ body {
 .bottom-safe-lift {
   bottom: calc(env(safe-area-inset-bottom) + 12px);
 }
+
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); width: 40%; }
+  50%  { transform: translateX(150%); width: 60%; }
+  100% { transform: translateX(300%); width: 40%; }
+}

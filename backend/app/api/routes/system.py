@@ -724,6 +724,34 @@ def upload_update_package(
     }
 
 
+@router.post("/update/check-latest")
+def check_latest_update(
+    payload: FetchUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Read the remote manifest and return version info without downloading the package."""
+    channel = _normalize_channel(payload.channel)
+    cfg = _load_update_config(db)
+    source_url_value = cfg.get("stable_source_url") if channel == "stable" else cfg.get("beta_source_url")
+    source_url = str(source_url_value or "").strip()
+    if not source_url:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"No source URL configured for {channel} channel")
+
+    _package_url, version, notes = _resolve_source_url(source_url)
+    installed = _get_installed_update(db)
+    installed_version = installed.get("installed_version")
+    up_to_date = bool(version and installed_version and version == installed_version)
+    return {
+        "channel": channel,
+        "version": version,
+        "notes": notes,
+        "installed_version": installed_version,
+        "up_to_date": up_to_date,
+    }
+
+
 @router.post("/update/fetch-latest", response_model=UpdatePackageInfo)
 def fetch_latest_update_package(
     payload: FetchUpdateRequest,

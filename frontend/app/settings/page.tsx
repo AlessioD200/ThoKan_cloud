@@ -16,7 +16,7 @@ import {
   WandSparkles,
 } from "lucide-react";
 import { LayoutShell } from "@/components/layout-shell";
-import { api, apiRaw, getApiBase } from "@/lib/api";
+import { api, apiRaw } from "@/lib/api";
 
 type StorageInfo = {
   current_path: string;
@@ -201,6 +201,7 @@ export default function SettingsPage() {
   const [updateChannel, setUpdateChannel] = useState<"stable" | "beta">("stable");
   const [updateBusy, setUpdateBusy] = useState(false);
   const [fetchBusy, setFetchBusy] = useState(false);
+  const [checkResult, setCheckResult] = useState<{ version: string | null; up_to_date: boolean; notes: string | null } | null>(null);
   const [dryRun, setDryRun] = useState(false);
   const [updateFile, setUpdateFile] = useState<File | null>(null);
   const [aptStatus, setAptStatus] = useState<AptStatus | null>(null);
@@ -268,37 +269,9 @@ export default function SettingsPage() {
     return Boolean(updateConfig?.auto_rebuild_docker ?? true);
   }
 
-  async function waitUntilBackendReady(timeoutMs = 180000): Promise<boolean> {
-    if (typeof window === "undefined") return false;
-    const token = localStorage.getItem("access_token");
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      try {
-        const headers = new Headers();
-        if (token) headers.set("Authorization", `Bearer ${token}`);
-        const response = await fetch(`${getApiBase()}/auth/me`, {
-          method: "GET",
-          headers,
-          credentials: "include",
-          cache: "no-store",
-        });
-        if (response.status === 200 || response.status === 401 || response.status === 403) {
-          return true;
-        }
-      } catch {
-        // backend still restarting
-      }
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-    return false;
-  }
-
-  async function forceReloginAfterRebuild() {
-    setStatus("Server wordt herstart. Je wordt automatisch uitgelogd zodra de backend terug online is...");
-    await waitUntilBackendReady();
-    localStorage.removeItem("access_token");
-    sessionStorage.setItem("auth_notice", "Update toegepast en services herstart. Log opnieuw in om verder te gaan.");
-    window.location.href = "/login";
+  function forceReloginAfterRebuild() {
+    // Navigate to the dedicated restarting page, which polls and redirects to /login when ready.
+    window.location.replace("/restarting");
   }
 
   async function loadAptStatus() {
@@ -412,6 +385,7 @@ export default function SettingsPage() {
   async function fetchLatestUpdate() {
     setFetchBusy(true);
     setStatus("");
+    setCheckResult(null);
     try {
       const result = await api<UpdatePackage>("/system/update/fetch-latest", {
         method: "POST",
@@ -443,12 +417,12 @@ export default function SettingsPage() {
           setStatus(applied.state === "success" ? "Update voltooid" : "Update mislukt");
           await loadUpdateData();
           if (shouldForceReloginAfterRebuild(applied)) {
-            await forceReloginAfterRebuild();
+            forceReloginAfterRebuild();
             return;
           }
         } catch (err) {
           if (isLikelyRestartInterruption(err) && !dryRun && Boolean(updateConfig?.auto_rebuild_docker ?? true)) {
-            await forceReloginAfterRebuild();
+            forceReloginAfterRebuild();
             return;
           }
           setStatus(err instanceof Error ? err.message : "Update mislukt");
@@ -460,6 +434,38 @@ export default function SettingsPage() {
       setStatus(err instanceof Error ? err.message : "Laatste update ophalen mislukt");
     }
     setFetchBusy(false);
+  }
+
+  async function checkAndFetchLatestUpdate() {
+    setFetchBusy(true);
+    setStatus("");
+    setCheckResult(null);
+    try {
+      type CheckResult = { version: string | null; up_to_date: boolean; notes: string | null; installed_version: string | null };
+      const check = await api<CheckResult>("/system/update/check-latest", {
+        method: "POST",
+        body: JSON.stringify({ channel: updateChannel }),
+      });
+      if (check.up_to_date) {
+        const label = check.version ? `v${check.version}` : "de huidige versie";
+        setCheckResult({ version: check.version, up_to_date: true, notes: check.notes });
+        setStatus(`Je draait al ${label} — geen update beschikbaar.`);
+        setFetchBusy(false);
+        return;
+      }
+      setCheckResult({ version: check.version, up_to_date: false, notes: check.notes });
+      const label = check.version ? `v${check.version}` : "een nieuwe versie";
+      const shouldDownload = window.confirm(`Nieuwe update beschikbaar: ${label}.\nNu downloaden en installeren?`);
+      if (!shouldDownload) {
+        setStatus(`Update ${label} beschikbaar maar niet gedownload.`);
+        setFetchBusy(false);
+        return;
+      }
+      await fetchLatestUpdate();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Update controleren mislukt");
+      setFetchBusy(false);
+    }
   }
 
   async function uploadUpdatePackage() {
@@ -505,12 +511,12 @@ export default function SettingsPage() {
       setStatus(result.state === "success" ? "Update voltooid" : "Update mislukt");
       await loadUpdateData();
       if (shouldForceReloginAfterRebuild(result)) {
-        await forceReloginAfterRebuild();
+        forceReloginAfterRebuild();
         return;
       }
     } catch (err) {
       if (isLikelyRestartInterruption(err) && !dryRun && Boolean(updateConfig?.auto_rebuild_docker ?? true)) {
-        await forceReloginAfterRebuild();
+        forceReloginAfterRebuild();
         return;
       }
       setStatus(err instanceof Error ? err.message : "Update mislukt");
@@ -1294,7 +1300,7 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
               <label className="block text-sm font-medium">Updatekanaal</label>
               <select
                 value={updateChannel}
-                onChange={(e) => setUpdateChannel(e.target.value as "stable" | "beta")}
+                onChange={(e) => { setUpdateChannel(e.target.value as "stable" | "beta"); setCheckResult(null); }}
                 className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
               >
                 <option value="stable">stable</option>
@@ -1345,12 +1351,16 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
                 {updateBusy ? "Opslaan..." : "Update-instellingen opslaan"}
               </button>
               <button
-                onClick={fetchLatestUpdate}
+                onClick={checkAndFetchLatestUpdate}
                 disabled={fetchBusy || !updateConfig}
                 className="inline-flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2 text-sm font-medium transition hover:bg-accent/10 disabled:opacity-50"
               >
                 <ArrowUpRight className="h-4 w-4" />
-                {fetchBusy ? "Downloaden..." : `Laatste ${updateChannel} downloaden`}
+                {fetchBusy
+                  ? "Controleren..."
+                  : checkResult?.up_to_date
+                  ? "✓ Al up-to-date"
+                  : "Update controleren"}
               </button>
             </div>
           </div>
