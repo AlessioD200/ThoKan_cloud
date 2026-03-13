@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageSquare, RefreshCw, Search, Send, Users } from "lucide-react";
 import { LayoutShell } from "@/components/layout-shell";
 import { api } from "@/lib/api";
@@ -37,6 +37,12 @@ export default function ChatPage() {
   const [loadingConversation, setLoadingConversation] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+
+  function scrollToBottom() {
+    if (!messagesContainerRef.current) return;
+    messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+  }
 
   async function loadCurrentUser() {
     try {
@@ -136,6 +142,10 @@ export default function ChatPage() {
     return () => clearInterval(interval);
   }, [selectedUser, currentUserId, lastIncomingMessageId]);
 
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, selectedUser?.id]);
+
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return users;
@@ -144,7 +154,7 @@ export default function ChatPage() {
 
   return (
     <LayoutShell>
-      <div className="space-y-5">
+      <div className="space-y-4">
         <section className="glass overflow-hidden rounded-[2rem] p-5 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -169,7 +179,7 @@ export default function ChatPage() {
         {error && <div className="rounded-[1.5rem] border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-300">{error}</div>}
 
         <div className="grid gap-5 xl:grid-cols-[0.9fr_1.3fr]">
-          <section className="glass rounded-[2rem] p-5 sm:p-6">
+          <section className="glass rounded-[2rem] p-5 sm:p-6 min-h-[68vh] flex flex-col">
             <div className="flex items-start gap-4 border-b border-border/60 pb-5">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/15 text-accent">
                 <Users className="h-5 w-5" />
@@ -215,7 +225,7 @@ export default function ChatPage() {
                   <p className="mt-1 text-sm opacity-65">{selectedUser.email}</p>
                 </div>
 
-                <div className="mt-4 max-h-[420px] space-y-2 overflow-y-auto rounded-2xl border border-border bg-card/20 p-3">
+                <div ref={messagesContainerRef} className="mt-4 flex-1 min-h-[320px] space-y-2 overflow-y-auto rounded-2xl border border-border bg-card/20 p-3">
                   {loadingConversation ? (
                     <p className="text-sm opacity-70">Chat laden...</p>
                   ) : messages.length === 0 ? (
@@ -237,7 +247,7 @@ export default function ChatPage() {
                   )}
                 </div>
 
-                <div className="mt-4 flex gap-2">
+                <div className="mt-3 flex gap-2 border-t border-border/50 pt-3">
                   <input
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}

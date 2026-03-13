@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 import { ChevronRight, Folder, LayoutGrid, LogOut, Mail, MessageSquare, MessageSquareText, Settings, Shield, Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { ensureSession } from "@/lib/api";
+import { ensureSession, getApiBase } from "@/lib/api";
 
 const items = [
   { href: "/dashboard", label: "Overzicht", icon: LayoutGrid },
@@ -22,6 +22,10 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isNative = Capacitor.isNativePlatform();
   const [authChecked, setAuthChecked] = useState(false);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const latestIncomingByUserRef = useRef<Record<string, string>>({});
+  const currentUserIdRef = useRef("");
+  const chatNotificationsInitializedRef = useRef(false);
   const activeItem = items.find((item) => pathname.startsWith(item.href)) ?? items[0];
 
   useEffect(() => {
@@ -43,6 +47,107 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!authChecked || isNative) return;
+    let cancelled = false;
+
+    async function pollChatNotifications() {
+      try {
+        let token: string | null = null;
+        try {
+          token = localStorage.getItem("access_token");
+        } catch {
+          token = null;
+        }
+        if (!token) return;
+
+        const headers = { Authorization: `Bearer ${token}` };
+
+        if (!currentUserIdRef.current) {
+          const meResponse = await fetch(`${getApiBase()}/auth/me`, {
+            method: "GET",
+            headers,
+            credentials: "include",
+            cache: "no-store",
+          });
+          if (!meResponse.ok) return;
+          const me = (await meResponse.json()) as { id?: string };
+          currentUserIdRef.current = me.id || "";
+        }
+
+        const usersResponse = await fetch(`${getApiBase()}/chat/users`, {
+          method: "GET",
+          headers,
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!usersResponse.ok) return;
+
+        const users = (await usersResponse.json()) as Array<{ id: string; full_name: string }>;
+        if (!Array.isArray(users) || users.length === 0) return;
+
+        let unreadIncrement = 0;
+        for (const user of users) {
+          const conversationResponse = await fetch(`${getApiBase()}/chat/conversations/${user.id}`, {
+            method: "GET",
+            headers,
+            credentials: "include",
+            cache: "no-store",
+          });
+          if (!conversationResponse.ok) continue;
+          const conversation = (await conversationResponse.json()) as {
+            messages?: Array<{ id: string; sender_id: string; body: string }>;
+          };
+
+          const latestIncoming = (conversation.messages || []).slice().reverse().find((message) => message.sender_id !== currentUserIdRef.current);
+          if (!latestIncoming) continue;
+
+          const previous = latestIncomingByUserRef.current[user.id];
+          if (!previous) {
+            latestIncomingByUserRef.current[user.id] = latestIncoming.id;
+            continue;
+          }
+
+          if (previous !== latestIncoming.id) {
+            latestIncomingByUserRef.current[user.id] = latestIncoming.id;
+            if (!pathname.startsWith("/chat")) {
+              unreadIncrement += 1;
+            }
+
+            if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+              new Notification(`Nieuw chatbericht van ${user.full_name}`, { body: latestIncoming.body });
+            }
+          }
+        }
+
+        if (!cancelled && unreadIncrement > 0) {
+          setChatUnreadCount((value) => value + unreadIncrement);
+        }
+      } catch {
+        // Best-effort polling only.
+      }
+    }
+
+    if (!chatNotificationsInitializedRef.current && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => undefined);
+      chatNotificationsInitializedRef.current = true;
+    }
+
+    if (pathname.startsWith("/chat")) {
+      setChatUnreadCount(0);
+    }
+
+    void pollChatNotifications();
+    const interval = setInterval(() => {
+      void pollChatNotifications();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [authChecked, isNative, pathname]);
 
   function handleLogout() {
     try {
@@ -83,7 +188,14 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                     active ? "bg-accent/15 text-accent" : "opacity-70"
                   }`}
                 >
-                  <Icon className={`h-4 w-4 ${active ? "text-accent" : ""}`} />
+                  <div className="relative">
+                    <Icon className={`h-4 w-4 ${active ? "text-accent" : ""}`} />
+                    {item.href === "/chat" && chatUnreadCount > 0 && (
+                      <span className="absolute -right-2 -top-2 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                        {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+                      </span>
+                    )}
+                  </div>
                   <span>{item.label}</span>
                 </Link>
               );
@@ -135,8 +247,13 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${active ? "bg-accent/15" : "bg-card/50"}`}>
+                      <div className={`relative flex h-10 w-10 items-center justify-center rounded-2xl ${active ? "bg-accent/15" : "bg-card/50"}`}>
                         <Icon className="h-4 w-4" />
+                        {item.href === "/chat" && chatUnreadCount > 0 && (
+                          <span className="absolute -right-1 -top-1 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                            {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+                          </span>
+                        )}
                       </div>
                       <div>
                         <p className="text-sm font-medium">{item.label}</p>

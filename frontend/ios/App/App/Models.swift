@@ -195,7 +195,7 @@ struct DirectChatMessage: Codable, Identifiable {
     let created_at: String
 }
 
-struct DirectChatParticipant: Codable {
+struct DirectChatParticipant: Codable, Identifiable {
     let id: String
     let email: String
     let full_name: String
