@@ -7,6 +7,7 @@ import {
   Boxes,
   Cog,
   HardDrive,
+  Mail,
   PackageCheck,
   RefreshCw,
   Server,
@@ -123,6 +124,21 @@ type CurrentUser = {
   roles: string[];
 };
 
+type MailConfig = {
+  email: string;
+  username: string;
+  imap_host: string;
+  imap_port: number;
+  imap_use_ssl: boolean;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_use_tls: boolean;
+  smtp_use_ssl: boolean;
+  has_password: boolean;
+  email_signature: string;
+  is_global?: boolean;
+};
+
 function SectionShell({
   icon,
   eyebrow,
@@ -231,8 +247,13 @@ export default function SettingsPage() {
   const [gelatoApplyToAll, setGelatoApplyToAll] = useState(false);
   const [gelatoSkuMapText, setGelatoSkuMapText] = useState("{}");
   const [gelatoBusy, setGelatoBusy] = useState(false);
+  const [mailConfig, setMailConfig] = useState<MailConfig | null>(null);
+  const [mailPassword, setMailPassword] = useState("");
+  const [mailApplyToAll, setMailApplyToAll] = useState(false);
+  const [mailBusy, setMailBusy] = useState(false);
+  const [mailTestBusy, setMailTestBusy] = useState(false);
   const [canConfigureGlobal, setCanConfigureGlobal] = useState(false);
-  const [sectionFilter, setSectionFilter] = useState<"all" | "core" | "storage" | "integrations" | "updates">("all");
+  const [sectionFilter, setSectionFilter] = useState<"all" | "core" | "storage" | "mail" | "api" | "updates">("all");
   const [sectionSearch, setSectionSearch] = useState("");
 
   useEffect(() => {
@@ -243,6 +264,7 @@ export default function SettingsPage() {
     loadShopifyCapabilities();
     loadShopifyWebsiteChatBridgeConfig();
     loadGelatoConfig();
+    loadMailConfig();
     loadCurrentUser();
     loadAptStatus();
   }, []);
@@ -304,6 +326,63 @@ export default function SettingsPage() {
     } catch {
       setCanConfigureGlobal(false);
     }
+  }
+
+  async function loadMailConfig() {
+    try {
+      const data = await api<MailConfig>("/mail/config");
+      setMailConfig(data);
+      setMailApplyToAll(Boolean(data.is_global));
+    } catch {
+      setMailConfig(null);
+    }
+  }
+
+  async function saveMailConfig() {
+    if (!mailConfig) return;
+    setMailBusy(true);
+    setStatus("");
+    try {
+      const payload: Record<string, unknown> = {
+        email: mailConfig.email,
+        username: mailConfig.username,
+        imap_host: mailConfig.imap_host,
+        imap_port: mailConfig.imap_port,
+        imap_use_ssl: mailConfig.imap_use_ssl,
+        smtp_host: mailConfig.smtp_host,
+        smtp_port: mailConfig.smtp_port,
+        smtp_use_tls: mailConfig.smtp_use_tls,
+        smtp_use_ssl: mailConfig.smtp_use_ssl,
+        email_signature: mailConfig.email_signature,
+        apply_to_all: canConfigureGlobal ? mailApplyToAll : false,
+      };
+      if (mailPassword.trim()) {
+        payload.password = mailPassword.trim();
+      }
+
+      const result = await api<{ message: string }>("/mail/config", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+      setStatus(result.message);
+      setMailPassword("");
+      await loadMailConfig();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Mail-instellingen opslaan mislukt");
+    }
+    setMailBusy(false);
+  }
+
+  async function testMailConfig() {
+    setMailTestBusy(true);
+    setStatus("");
+    try {
+      const result = await api<{ message: string }>("/mail/test", { method: "POST" });
+      setStatus(result.message);
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Mail-test mislukt");
+    }
+    setMailTestBusy(false);
   }
 
   useEffect(() => {
@@ -702,9 +781,10 @@ export default function SettingsPage() {
       { key: "core", title: "Systeeminformatie" },
       { key: "storage", title: "Huidige opslag" },
       { key: "storage", title: "Beschikbare mount points" },
-      { key: "integrations", title: "Shopify integratie" },
-      { key: "integrations", title: "Shopify website-chat bridge" },
-      { key: "integrations", title: "Gelato integratie" },
+      { key: "mail", title: "Mail instellingen" },
+      { key: "api", title: "API instellingen: Shopify" },
+      { key: "api", title: "API instellingen: Shopify website-chat bridge" },
+      { key: "api", title: "API instellingen: Gelato" },
       { key: "updates", title: "Systeemupdates" },
     ];
 
@@ -722,7 +802,7 @@ export default function SettingsPage() {
     });
   }, [packages, updateChannel]);
 
-  function shouldShowSection(sectionKey: "core" | "storage" | "integrations" | "updates", title: string): boolean {
+  function shouldShowSection(sectionKey: "core" | "storage" | "mail" | "api" | "updates", title: string): boolean {
     if (sectionFilter !== "all" && sectionFilter !== sectionKey) return false;
     const query = sectionSearch.trim().toLowerCase();
     if (!query) return true;
@@ -755,6 +835,7 @@ export default function SettingsPage() {
                     loadShopifyConfig();
                     loadShopifyWebsiteChatBridgeConfig();
                     loadGelatoConfig();
+                    loadMailConfig();
                     loadAptStatus();
                   }}
                   disabled={loading}
@@ -773,7 +854,7 @@ export default function SettingsPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <StatCard label="Zichtbaar" value={visibleSectionCount} hint="Secties die overeenkomen met huidige filters" />
               <StatCard label="Mounts" value={info?.available_mounts?.length || 0} hint="Gedetecteerde opslagdoelen" />
-              <StatCard label="Integraties" value={configuredIntegrations} hint="Gekoppelde externe diensten" />
+              <StatCard label="API koppelingen" value={configuredIntegrations} hint="Gekoppelde externe diensten" />
               <StatCard label="Opslag" value={`${activeStorageUsage.toFixed(0)}%`} hint="Huidig schijfgebruik" />
             </div>
           </div>
@@ -792,18 +873,19 @@ export default function SettingsPage() {
               type="text"
               value={sectionSearch}
               onChange={(e) => setSectionSearch(e.target.value)}
-              placeholder="Zoek sectie (systeem, opslag, integratie, updates)"
+              placeholder="Zoek sectie (systeem, opslag, mail, api, updates)"
               className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
             />
             <select
               value={sectionFilter}
-              onChange={(e) => setSectionFilter(e.target.value as "all" | "core" | "storage" | "integrations" | "updates")}
+              onChange={(e) => setSectionFilter(e.target.value as "all" | "core" | "storage" | "mail" | "api" | "updates")}
               className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
             >
               <option value="all">Alle secties</option>
               <option value="core">Kern</option>
               <option value="storage">Opslag</option>
-              <option value="integrations">Integraties</option>
+              <option value="mail">Mail</option>
+              <option value="api">API</option>
               <option value="updates">Updates</option>
             </select>
           </div>
@@ -962,11 +1044,156 @@ export default function SettingsPage() {
         </SectionShell>
         )}
 
-        {shouldShowSection("integrations", "Shopify integratie") && (
+        {shouldShowSection("mail", "Mail instellingen") && mailConfig && (
+        <SectionShell
+          icon={<Mail className="h-5 w-5" />}
+          eyebrow="Mail"
+          title="Mail instellingen"
+          description="Beheer IMAP/SMTP apart voor mailbox synchronisatie en uitgaande berichten."
+          aside={
+            <div className={`rounded-full px-3 py-1 text-xs font-medium ${mailConfig.has_password ? "bg-green-500/15 text-green-600 dark:text-green-300" : "bg-card/40"}`}>
+              {mailConfig.has_password ? "Wachtwoord opgeslagen" : "Wachtwoord vereist"}
+            </div>
+          }
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium">E-mailadres</label>
+              <input
+                type="email"
+                className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                value={mailConfig.email}
+                onChange={(e) => setMailConfig((prev) => (prev ? { ...prev, email: e.target.value } : prev))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">Gebruikersnaam</label>
+              <input
+                type="text"
+                className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                value={mailConfig.username}
+                onChange={(e) => setMailConfig((prev) => (prev ? { ...prev, username: e.target.value } : prev))}
+              />
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <div>
+              <label className="block text-sm font-medium">IMAP host</label>
+              <input
+                type="text"
+                className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                value={mailConfig.imap_host}
+                onChange={(e) => setMailConfig((prev) => (prev ? { ...prev, imap_host: e.target.value } : prev))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">IMAP poort</label>
+              <input
+                type="number"
+                className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                value={mailConfig.imap_port}
+                onChange={(e) => setMailConfig((prev) => (prev ? { ...prev, imap_port: Number(e.target.value) || 993 } : prev))}
+              />
+            </div>
+            <label className="mt-7 flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">
+              <input
+                type="checkbox"
+                checked={mailConfig.imap_use_ssl}
+                onChange={(e) => setMailConfig((prev) => (prev ? { ...prev, imap_use_ssl: e.target.checked } : prev))}
+              />
+              IMAP SSL gebruiken
+            </label>
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            <div>
+              <label className="block text-sm font-medium">SMTP host</label>
+              <input
+                type="text"
+                className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                value={mailConfig.smtp_host}
+                onChange={(e) => setMailConfig((prev) => (prev ? { ...prev, smtp_host: e.target.value } : prev))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium">SMTP poort</label>
+              <input
+                type="number"
+                className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                value={mailConfig.smtp_port}
+                onChange={(e) => setMailConfig((prev) => (prev ? { ...prev, smtp_port: Number(e.target.value) || 587 } : prev))}
+              />
+            </div>
+            <label className="mt-7 flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">
+              <input
+                type="checkbox"
+                checked={mailConfig.smtp_use_tls}
+                onChange={(e) => setMailConfig((prev) => (prev ? { ...prev, smtp_use_tls: e.target.checked } : prev))}
+              />
+              SMTP TLS
+            </label>
+            <label className="mt-7 flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">
+              <input
+                type="checkbox"
+                checked={mailConfig.smtp_use_ssl}
+                onChange={(e) => setMailConfig((prev) => (prev ? { ...prev, smtp_use_ssl: e.target.checked } : prev))}
+              />
+              SMTP SSL
+            </label>
+          </div>
+
+          <div className="mt-3">
+            <label className="block text-sm font-medium">Wachtwoord</label>
+            <input
+              type="password"
+              className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+              placeholder={mailConfig.has_password ? "Al opgeslagen (leeg laten om te behouden)" : "Mailbox wachtwoord"}
+              value={mailPassword}
+              onChange={(e) => setMailPassword(e.target.value)}
+            />
+          </div>
+
+          <div className="mt-3">
+            <label className="block text-sm font-medium">E-mailhandtekening</label>
+            <textarea
+              className="mt-2 h-32 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+              value={mailConfig.email_signature}
+              onChange={(e) => setMailConfig((prev) => (prev ? { ...prev, email_signature: e.target.value } : prev))}
+            />
+          </div>
+
+          {canConfigureGlobal && (
+            <label className="mt-4 flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">
+              <input type="checkbox" checked={mailApplyToAll} onChange={(e) => setMailApplyToAll(e.target.checked)} />
+              Deze mailconfiguratie voor alle accounts gebruiken
+            </label>
+          )}
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              onClick={saveMailConfig}
+              disabled={mailBusy}
+              className="rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+            >
+              {mailBusy ? "Opslaan..." : "Mail-instellingen opslaan"}
+            </button>
+            <button
+              onClick={testMailConfig}
+              disabled={mailTestBusy}
+              className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium transition hover:bg-accent/10 disabled:opacity-50"
+            >
+              {mailTestBusy ? "Testen..." : "Mailverbinding testen"}
+            </button>
+          </div>
+        </SectionShell>
+        )}
+
+        {shouldShowSection("api", "API instellingen: Shopify") && (
         <SectionShell
           icon={<Store className="h-5 w-5" />}
-          eyebrow="Integraties"
-          title="Shopify integratie"
+          eyebrow="API"
+          title="API instellingen: Shopify"
           description="Koppel Shopify om besteldata en orderevents in het cloud-dashboard en de afhandelingsflow te tonen."
           aside={
             <div className={`rounded-full px-3 py-1 text-xs font-medium ${shopifyHasToken ? "bg-green-500/15 text-green-600 dark:text-green-300" : "bg-card/40"}`}>
@@ -1193,11 +1420,11 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
         </SectionShell>
         )}
 
-        {shouldShowSection("integrations", "Gelato integratie") && (
+        {shouldShowSection("api", "API instellingen: Gelato") && (
         <SectionShell
           icon={<ShoppingBag className="h-5 w-5" />}
-          eyebrow="Integraties"
-          title="Gelato integratie"
+          eyebrow="API"
+          title="API instellingen: Gelato"
           description="Configureer Gelato voor productmapping, prijzen en bestelplaatsing vanuit Shopify-bestellingen."
           aside={
             <div className={`rounded-full px-3 py-1 text-xs font-medium ${gelatoHasKey ? "bg-green-500/15 text-green-600 dark:text-green-300" : "bg-card/40"}`}>
