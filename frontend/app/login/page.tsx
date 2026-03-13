@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowRight, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react";
-import { api, ensureSession } from "@/lib/api";
+import { api } from "@/lib/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -13,11 +12,8 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [noticeType, setNoticeType] = useState<"warning" | "success">("warning");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   useEffect(() => {
-    let cancelled = false;
-
     let notice: string | null = null;
     let type: string | null = null;
     try {
@@ -38,24 +34,7 @@ export default function LoginPage() {
         // Ignore storage errors.
       }
     }
-
-    async function checkExistingSession() {
-      if (notice) {
-        return;
-      }
-      const authenticated = await ensureSession({ requireConfirmedAuth: true });
-      if (cancelled) return;
-      if (authenticated) {
-        window.location.replace(`/dashboard?r=${Date.now()}`);
-      }
-    }
-
-    void checkExistingSession();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [router]);
+  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
