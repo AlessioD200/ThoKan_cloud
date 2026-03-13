@@ -9,14 +9,13 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.security import generate_random_token, hash_password, hash_token, verify_password
-from app.core.config import settings
 from app.db.session import get_db
 from app.deps import get_current_user
 from app.models import File, FileVersion, SharedLink, SharedWithUser, User
 from app.schemas.api import ShareLinkRequest, ShareLinkResponse, ShareUserRequest
 from app.services.audit import log_event
 from app.services.encryption import decrypt_bytes
-from app.services.storage import LocalStorageDriver, get_storage_driver
+from app.services.storage import LocalStorageDriver, get_local_storage_roots, get_storage_driver
 
 router = APIRouter()
 
@@ -69,14 +68,16 @@ def _read_encrypted_with_recovery(driver: object, candidate_keys: list[str]) -> 
             continue
 
     if isinstance(driver, LocalStorageDriver):
-        root = Path(settings.storage_local_root)
         basenames = [Path(key).name for key in candidate_keys if key]
-        for basename in basenames:
-            if not basename:
+        for root in get_local_storage_roots():
+            if not root.exists():
                 continue
-            for match in root.rglob(basename):
-                if match.is_file():
-                    return match.read_bytes()
+            for basename in basenames:
+                if not basename:
+                    continue
+                for match in root.rglob(basename):
+                    if match.is_file():
+                        return match.read_bytes()
 
     if isinstance(last_read_error, FileNotFoundError):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stored file content not found") from last_read_error

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import boto3
@@ -21,7 +20,7 @@ class StorageDriver:
 
 class LocalStorageDriver(StorageDriver):
     def __init__(self, root: str):
-        self.root = Path(root)
+        self.root = resolve_local_storage_root(root)
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path_for(self, key: str) -> Path:
@@ -62,6 +61,39 @@ class S3StorageDriver(StorageDriver):
 
     def delete(self, key: str) -> None:
         self.client.delete_object(Bucket=self.bucket, Key=key)
+
+
+def get_local_storage_roots(configured_root: str | None = None) -> list[Path]:
+    configured = configured_root or settings.storage_local_root
+    root = Path(configured)
+    app_root = Path(__file__).resolve().parents[2]
+
+    candidates: list[Path] = []
+
+    def _add(path: Path) -> None:
+        resolved = path.expanduser().resolve()
+        if resolved not in candidates:
+            candidates.append(resolved)
+
+    if root.is_absolute():
+        _add(root)
+        return candidates
+
+    _add(Path.cwd() / root)
+    _add(app_root / root)
+    if root.name:
+        _add(Path("/app") / root.name)
+        _add(Path("/host_repo") / root.name)
+
+    return candidates
+
+
+def resolve_local_storage_root(configured_root: str | None = None) -> Path:
+    candidates = get_local_storage_roots(configured_root)
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 
 def get_storage_driver() -> StorageDriver:
