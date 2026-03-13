@@ -252,7 +252,7 @@ export async function ensureSession(options?: { requireConfirmedAuth?: boolean }
 
   if (inflightSessionCheck) {
     const result = await inflightSessionCheck;
-    return requireConfirmedAuth ? result : result || true;
+    return result;
   }
 
   inflightSessionCheck = (async () => {
@@ -303,5 +303,5 @@ export async function ensureSession(options?: { requireConfirmedAuth?: boolean }
     return checked;
   }
 
-  return checked || true;
+  return checked;
 }

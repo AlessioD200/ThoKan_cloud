@@ -18,16 +18,6 @@ export default function LoginPage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function checkExistingSession() {
-      const authenticated = await ensureSession({ requireConfirmedAuth: true });
-      if (cancelled) return;
-      if (authenticated) {
-        window.location.replace(`/dashboard?r=${Date.now()}`);
-      }
-    }
-
-    void checkExistingSession();
-
     let notice: string | null = null;
     let type: string | null = null;
     try {
@@ -37,6 +27,7 @@ export default function LoginPage() {
       notice = null;
       type = null;
     }
+
     if (notice) {
       setError(notice);
       setNoticeType(type === "success" ? "success" : "warning");
@@ -47,6 +38,19 @@ export default function LoginPage() {
         // Ignore storage errors.
       }
     }
+
+    async function checkExistingSession() {
+      if (notice) {
+        return;
+      }
+      const authenticated = await ensureSession({ requireConfirmedAuth: true });
+      if (cancelled) return;
+      if (authenticated) {
+        window.location.replace(`/dashboard?r=${Date.now()}`);
+      }
+    }
+
+    void checkExistingSession();
 
     return () => {
       cancelled = true;
