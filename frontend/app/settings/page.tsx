@@ -253,7 +253,7 @@ export default function SettingsPage() {
   const [mailBusy, setMailBusy] = useState(false);
   const [mailTestBusy, setMailTestBusy] = useState(false);
   const [canConfigureGlobal, setCanConfigureGlobal] = useState(false);
-  const [sectionFilter, setSectionFilter] = useState<"all" | "core" | "storage" | "mail" | "api" | "updates">("all");
+  const [sectionFilter, setSectionFilter] = useState<"all" | "info" | "mail" | "api" | "updates">("all");
   const [sectionSearch, setSectionSearch] = useState("");
 
   useEffect(() => {
@@ -778,9 +778,9 @@ export default function SettingsPage() {
   const visibleSectionCount = useMemo(() => {
     const query = sectionSearch.trim().toLowerCase();
     const sections = [
-      { key: "core", title: "Systeeminformatie" },
-      { key: "storage", title: "Huidige opslag" },
-      { key: "storage", title: "Beschikbare mount points" },
+      { key: "info", title: "Systeeminformatie" },
+      { key: "info", title: "Huidige opslag" },
+      { key: "info", title: "Beschikbare mount points" },
       { key: "mail", title: "Mail instellingen" },
       { key: "api", title: "API instellingen: Shopify" },
       { key: "api", title: "API instellingen: Shopify website-chat bridge" },
@@ -802,7 +802,7 @@ export default function SettingsPage() {
     });
   }, [packages, updateChannel]);
 
-  function shouldShowSection(sectionKey: "core" | "storage" | "mail" | "api" | "updates", title: string): boolean {
+  function shouldShowSection(sectionKey: "info" | "mail" | "api" | "updates", title: string): boolean {
     if (sectionFilter !== "all" && sectionFilter !== sectionKey) return false;
     const query = sectionSearch.trim().toLowerCase();
     if (!query) return true;
@@ -814,7 +814,64 @@ export default function SettingsPage() {
 
   return (
     <LayoutShell>
-      <div className="space-y-5">
+      <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="glass h-fit rounded-[1.5rem] p-3 lg:sticky lg:top-6">
+          <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.18em] opacity-50">Instellingen</p>
+          <div className="space-y-1">
+            <button
+              onClick={() => {
+                setSectionFilter("info");
+                setSectionSearch("");
+              }}
+              className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${sectionFilter === "info" ? "bg-accent/15 text-accent" : "hover:bg-card/40"}`}
+            >
+              <Server className="h-4 w-4" />
+              Info
+            </button>
+            <button
+              onClick={() => {
+                setSectionFilter("mail");
+                setSectionSearch("");
+              }}
+              className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${sectionFilter === "mail" ? "bg-accent/15 text-accent" : "hover:bg-card/40"}`}
+            >
+              <Mail className="h-4 w-4" />
+              Mail instellingen
+            </button>
+            <button
+              onClick={() => {
+                setSectionFilter("api");
+                setSectionSearch("");
+              }}
+              className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${sectionFilter === "api" ? "bg-accent/15 text-accent" : "hover:bg-card/40"}`}
+            >
+              <Store className="h-4 w-4" />
+              Integraties
+            </button>
+            <button
+              onClick={() => {
+                setSectionFilter("updates");
+                setSectionSearch("");
+              }}
+              className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${sectionFilter === "updates" ? "bg-accent/15 text-accent" : "hover:bg-card/40"}`}
+            >
+              <PackageCheck className="h-4 w-4" />
+              Updates
+            </button>
+            <button
+              onClick={() => {
+                setSectionFilter("all");
+                setSectionSearch("");
+              }}
+              className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${sectionFilter === "all" ? "bg-accent/15 text-accent" : "hover:bg-card/40"}`}
+            >
+              <Boxes className="h-4 w-4" />
+              Alles tonen
+            </button>
+          </div>
+        </aside>
+
+        <div className="space-y-5">
         <section className="glass overflow-hidden rounded-[2rem] p-5 sm:p-6">
           <div className="grid gap-5 lg:grid-cols-[1.3fr_0.9fr] lg:items-center">
             <div>
@@ -878,12 +935,11 @@ export default function SettingsPage() {
             />
             <select
               value={sectionFilter}
-              onChange={(e) => setSectionFilter(e.target.value as "all" | "core" | "storage" | "mail" | "api" | "updates")}
+              onChange={(e) => setSectionFilter(e.target.value as "all" | "info" | "mail" | "api" | "updates")}
               className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
             >
               <option value="all">Alle secties</option>
-              <option value="core">Kern</option>
-              <option value="storage">Opslag</option>
+              <option value="info">Info</option>
               <option value="mail">Mail</option>
               <option value="api">API</option>
               <option value="updates">Updates</option>
@@ -897,7 +953,7 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {shouldShowSection("core", "Systeeminformatie") && (
+        {shouldShowSection("info", "Systeeminformatie") && (
         <SectionShell
           icon={<Server className="h-5 w-5" />}
           eyebrow="Kern"
@@ -925,7 +981,7 @@ export default function SettingsPage() {
         </SectionShell>
         )}
 
-        {shouldShowSection("storage", "Huidige opslag") && (
+        {shouldShowSection("info", "Huidige opslag") && (
         <SectionShell
           icon={<HardDrive className="h-5 w-5" />}
           eyebrow="Opslag"
@@ -981,7 +1037,7 @@ export default function SettingsPage() {
         </SectionShell>
         )}
 
-        {shouldShowSection("storage", "Beschikbare mount points") && (
+        {shouldShowSection("info", "Beschikbare mount points") && (
         <SectionShell
           icon={<Boxes className="h-5 w-5" />}
           eyebrow="Opslag"
@@ -1754,6 +1810,7 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
             Geen instellingensecties komen overeen met dit filter.
           </div>
         )}
+        </div>
       </div>
     </LayoutShell>
   );
