@@ -118,7 +118,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <nav className="mt-4 flex-1 space-y-2 overflow-y-visible pr-1 hide-scrollbar">
+            <nav className="mt-4 space-y-2 overflow-y-visible pr-1 hide-scrollbar">
               {items.map((item) => {
                 const active = pathname.startsWith(item.href);
                 const Icon = item.icon;
@@ -159,7 +159,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className="mt-auto hidden rounded-[1.75rem] border border-border/70 bg-card/35 p-4 text-sm opacity-65 lg:block">
+            <div className="mt-4 hidden rounded-[1.75rem] border border-border/70 bg-card/35 p-4 text-sm opacity-65 lg:block">
               Snelle toegang tot bestanden, e-mail, admin en updates vanuit één consistente omgeving.
             </div>
           </div>
