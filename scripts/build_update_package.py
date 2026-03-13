@@ -17,7 +17,6 @@ REPO_EXCLUDE_DIRS = {
     ".venv",
     "__pycache__",
     "node_modules",
-    "out",
     "Pods",
     "storage",
 }

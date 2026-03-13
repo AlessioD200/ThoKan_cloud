@@ -34,6 +34,17 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build frontend (generates frontend/out/)
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
       - name: Determine channel and version
         id: meta
         shell: bash
