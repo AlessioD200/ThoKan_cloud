@@ -11,10 +11,11 @@ from app.core.config import settings
 from app.core.csrf import CSRFMiddleware
 from app.core.rate_limit import limiter
 from app.core.security_headers import SecurityHeadersMiddleware
+from app.core.versioning import get_runtime_version
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.app_name, version="1.0.0", openapi_url="/api/openapi.json")
+    app = FastAPI(title=settings.app_name, version=get_runtime_version(), openapi_url="/api/openapi.json")
 
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

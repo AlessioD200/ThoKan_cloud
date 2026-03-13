@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, Boxes, HardDrive, RefreshCw, Server, ShoppingCart, Sparkles } from "lucide-react";
 import { LayoutShell } from "@/components/layout-shell";
-import { api } from "@/lib/api";
+import { api, isSessionExpiredError } from "@/lib/api";
 
 type DashboardData = {
   used_bytes: number;
@@ -229,6 +229,10 @@ export default function DashboardPage() {
         }
       );
       const unmapped = result.unmapped_skus && result.unmapped_skus.length > 0 ? ` (unmapped SKUs: ${result.unmapped_skus.join(", ")})` : "";
+        if (isSessionExpiredError(err)) {
+          setLoading(false);
+          return;
+        }
       setSendGelatoStatus(`${result.message}${unmapped}`);
       await loadGelatoStatus(selectedOrder.id);
     } catch (err) {

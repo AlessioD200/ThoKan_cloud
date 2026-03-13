@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.versioning import get_runtime_version
 from app.db.session import get_db
 from app.deps import get_current_user, require_admin
 from app.models import SystemSetting, User
@@ -524,12 +525,18 @@ def _extract_build_date(package_name: str | None) -> str | None:
 
 
 def _get_installed_update(db: Session) -> dict:
+    runtime_version = get_runtime_version(default="") or None
     row = db.query(SystemSetting).filter(SystemSetting.key == INSTALLED_UPDATE_KEY).first()
     if not row or not isinstance(row.value, dict):
-        return {"installed_package_name": None, "installed_build_date": None, "installed_version": None}
+        return {
+            "installed_package_name": None,
+            "installed_build_date": None,
+            "installed_version": runtime_version,
+        }
     package_name = str(row.value.get("package_name") or "") or None
     build_date = str(row.value.get("build_date") or "") or _extract_build_date(package_name)
-    installed_version = str(row.value.get("version") or "") or None
+    stored_version = str(row.value.get("version") or "") or None
+    installed_version = runtime_version or stored_version
     return {
         "installed_package_name": package_name,
         "installed_build_date": build_date,

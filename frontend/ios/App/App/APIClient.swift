@@ -24,6 +24,15 @@ class APIClient: NSObject {
     }()
     
     private let baseURL = APIConfig.baseURL
+    private var openAPIURL: URL {
+        let normalizedBaseURL = baseURL.hasSuffix("/") ? baseURL : "\(baseURL)/"
+        if let apiBaseURL = URL(string: normalizedBaseURL),
+           let resolvedURL = URL(string: "../openapi.json", relativeTo: apiBaseURL)?.absoluteURL {
+            return resolvedURL
+        }
+
+        return URL(string: "https://thokan.cloud/api/openapi.json")!
+    }
     
     private var accessToken: String? {
         get { UserDefaults.standard.string(forKey: "access_token") }
@@ -292,8 +301,7 @@ class APIClient: NSObject {
     }
 
     func fetchCloudVersion() async throws -> String {
-        let url = URL(string: "https://thokan.cloud/api/openapi.json")!
-        let response: CloudOpenAPIResponse = try await requestWithoutAuth(URLRequest(url: url))
+        let response: CloudOpenAPIResponse = try await requestWithoutAuth(URLRequest(url: openAPIURL))
         return response.info.version
     }
 

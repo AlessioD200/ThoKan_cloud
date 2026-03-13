@@ -49,6 +49,10 @@ function normalizeFetchError(error: unknown): Error {
   return error instanceof Error ? error : new Error("Request failed");
 }
 
+export function isSessionExpiredError(error: unknown): boolean {
+  return error instanceof Error && error.message.toLowerCase().includes("sessie verlopen");
+}
+
 function authHeaders() {
   if (typeof window === "undefined") return {};
   const token = localStorage.getItem("access_token");
@@ -187,16 +191,15 @@ export async function uploadFile(file: File, folderId?: string) {
   return response.json();
 }
 
-export async function ensureSession(): Promise<boolean> {
+export async function ensureSession(options?: { requireConfirmedAuth?: boolean }): Promise<boolean> {
   if (typeof window === "undefined") return false;
 
   const accessToken = localStorage.getItem("access_token");
   if (!accessToken) return false;
 
+  const requireConfirmedAuth = options?.requireConfirmedAuth === true;
+
   try {
-    // Use raw fetch directly so a network error (backend restarting, briefly unreachable)
-    // does NOT trigger a logout. Only an actual 401 from the backend means the session
-    // is invalid and the user must re-authenticate.
     const response = await fetch(`${getApiBase()}/auth/me`, {
       method: "GET",
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -211,12 +214,16 @@ export async function ensureSession(): Promise<boolean> {
       return false;
     }
 
-    // Any other response (200, 403, 5xx…) means the backend is reachable.
-    // Keep the user logged in regardless — individual API calls will surface real errors.
+    if (response.ok) {
+      return true;
+    }
+
+    if (requireConfirmedAuth) {
+      return false;
+    }
+
     return true;
   } catch {
-    // Network error: backend temporarily unreachable (e.g. during restart).
-    // Trust the stored token and let the user stay logged in.
-    return true;
+    return requireConfirmedAuth ? false : true;
   }
 }

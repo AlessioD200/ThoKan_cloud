@@ -19,7 +19,7 @@ export default function LoginPage() {
     let cancelled = false;
 
     async function checkExistingSession() {
-      const authenticated = await ensureSession();
+      const authenticated = await ensureSession({ requireConfirmedAuth: true });
       if (cancelled) return;
       if (authenticated) {
         router.replace("/dashboard");

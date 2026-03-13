@@ -180,7 +180,7 @@ struct MoveRequestPayload: Encodable {
 
 // MARK: - Admin Models
 
-struct AdminUserResponse: Decodable {
+struct AdminUserResponse: Decodable, Identifiable {
     let id: String
     let email: String
     let full_name: String
