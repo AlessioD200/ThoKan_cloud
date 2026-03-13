@@ -50,6 +50,7 @@ type UpdatePackage = {
   size_bytes: number;
   modified_at: string;
   release_notes?: string | null;
+  version?: string | null;
 };
 
 type UpdateStatus = {
@@ -66,6 +67,7 @@ type UpdateStatus = {
   release_notes?: string | null;
   installed_package_name?: string | null;
   installed_build_date?: string | null;
+  installed_version?: string | null;
 };
 
 type AptStatus = {
@@ -1272,8 +1274,9 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <div className="rounded-2xl border border-border bg-card/30 p-4">
-              <p className="text-xs font-medium uppercase tracking-[0.16em] opacity-50">Huidig geïnstalleerd</p>
-              <p className="mt-2 text-sm font-medium break-all">{updateStatus?.installed_package_name || "Onbekend"}</p>
+              <p className="text-xs font-medium uppercase tracking-[0.16em] opacity-50">Geïnstalleerde versie</p>
+              <p className="mt-2 text-2xl font-bold">{updateStatus?.installed_version ? `v${updateStatus.installed_version}` : "Onbekend"}</p>
+              <p className="mt-1 text-xs opacity-50 break-all">{updateStatus?.installed_package_name || ""}</p>
             </div>
             <div className="rounded-2xl border border-border bg-card/30 p-4">
               <p className="text-xs font-medium uppercase tracking-[0.16em] opacity-50">Build (jaar-maand-dag)</p>
@@ -1379,7 +1382,7 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
               <option value="">Selecteer updatepakket ({updateChannel})</option>
               {channelPackages.map((pkg) => (
                 <option key={pkg.name} value={pkg.name}>
-                  [{pkg.channel || "handmatig"}] {getBuildDateFromPackageName(pkg.name)}
+                  {pkg.version ? `v${pkg.version} ` : ""}{getBuildDateFromPackageName(pkg.name)} [{pkg.channel || "handmatig"}]
                 </option>
               ))}
             </select>
@@ -1395,6 +1398,19 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
               {updateBusy ? "Toepassen..." : "Update toepassen"}
             </button>
           </div>
+
+          {selectedPackage && (() => {
+            const pkg = channelPackages.find((p) => p.name === selectedPackage);
+            const targetVersion = pkg?.version;
+            return targetVersion ? (
+              <p className="mt-2 text-sm opacity-70">
+                Zou updaten naar: <span className="font-semibold">v{targetVersion}</span>
+                {updateStatus?.installed_version && updateStatus.installed_version !== targetVersion && (
+                  <span className="ml-1 opacity-60">(huidig: v{updateStatus.installed_version})</span>
+                )}
+              </p>
+            ) : null;
+          })()}
 
           {aptStatus !== null && (
             <div className={`mt-4 rounded-[1.5rem] border p-4 text-sm ${aptStatus.upgradable > 0 ? "border-yellow-500/40 bg-yellow-500/10" : "border-border bg-card/30"}`}>

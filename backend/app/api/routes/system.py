@@ -30,6 +30,7 @@ DEFAULT_GITHUB_UPDATE_BRANCH = "update-channel"
 TARGET_INSTALL_ROOT = Path("/opt/thokan-cloud")
 PRODUCTION_DOCKER_UPDATE_COMMAND = "if command -v docker >/dev/null 2>&1; then docker compose -f docker-compose.prod.yml restart backend; else echo '[ThoKan update] docker command not found, skipping backend restart.'; fi"
 NOTES_CACHE_KEY = "update_notes_cache"
+VERSION_CACHE_KEY = "update_version_cache"
 INSTALLED_UPDATE_KEY = "system_update_installed"
 
 
@@ -65,6 +66,7 @@ class UpdatePackageInfo(BaseModel):
     size_bytes: int
     modified_at: str
     release_notes: str | None = None
+    version: str | None = None
 
 
 class UpdateStatus(BaseModel):
@@ -81,6 +83,7 @@ class UpdateStatus(BaseModel):
     release_notes: str | None = None
     installed_package_name: str | None = None
     installed_build_date: str | None = None
+    installed_version: str | None = None
 
 
 class AptStatus(BaseModel):
@@ -139,6 +142,30 @@ def _store_notes_for_package(db: Session, package_name: str, notes: str | None) 
         row.value = cache
     else:
         row = SystemSetting(key=NOTES_CACHE_KEY, value=cache)
+        db.add(row)
+    db.commit()
+
+
+def _get_version_for_package(db: Session, package_name: str) -> str | None:
+    row = db.query(SystemSetting).filter(SystemSetting.key == VERSION_CACHE_KEY).first()
+    if not row or not isinstance(row.value, dict):
+        return None
+    return str(row.value.get(package_name) or "") or None
+
+
+def _store_version_for_package(db: Session, package_name: str, version: str | None) -> None:
+    if not version:
+        return
+    row = db.query(SystemSetting).filter(SystemSetting.key == VERSION_CACHE_KEY).first()
+    cache: dict = dict(row.value) if row and isinstance(row.value, dict) else {}
+    if len(cache) >= 20:
+        for old_key in list(cache.keys())[:-19]:
+            del cache[old_key]
+    cache[package_name] = version
+    if row:
+        row.value = cache
+    else:
+        row = SystemSetting(key=VERSION_CACHE_KEY, value=cache)
         db.add(row)
     db.commit()
 
@@ -411,7 +438,7 @@ echo "[ThoKan update] Package payload applied successfully."
                     "stderr": (result.stderr or "")[-10000:],
                 }
                 if result.returncode == 0 and not payload.dry_run:
-                    status_payload.update(_save_installed_update(db, target_name))
+                    status_payload.update(_save_installed_update(db, target_name, None))
                 else:
                     status_payload.update(_get_installed_update(db))
                 _save_update_status(db, status_payload)
@@ -479,20 +506,23 @@ def _extract_build_date(package_name: str | None) -> str | None:
 def _get_installed_update(db: Session) -> dict:
     row = db.query(SystemSetting).filter(SystemSetting.key == INSTALLED_UPDATE_KEY).first()
     if not row or not isinstance(row.value, dict):
-        return {"installed_package_name": None, "installed_build_date": None}
+        return {"installed_package_name": None, "installed_build_date": None, "installed_version": None}
     package_name = str(row.value.get("package_name") or "") or None
     build_date = str(row.value.get("build_date") or "") or _extract_build_date(package_name)
+    installed_version = str(row.value.get("version") or "") or None
     return {
         "installed_package_name": package_name,
         "installed_build_date": build_date,
+        "installed_version": installed_version,
     }
 
 
-def _save_installed_update(db: Session, package_name: str) -> dict:
+def _save_installed_update(db: Session, package_name: str, version: str | None = None) -> dict:
     value = {
         "package_name": package_name,
         "build_date": _extract_build_date(package_name),
         "updated_at": datetime.now(timezone.utc).isoformat(),
+        "version": version,
     }
     row = db.query(SystemSetting).filter(SystemSetting.key == INSTALLED_UPDATE_KEY).first()
     if row:
@@ -504,6 +534,7 @@ def _save_installed_update(db: Session, package_name: str) -> dict:
     return {
         "installed_package_name": value["package_name"],
         "installed_build_date": value["build_date"],
+        "installed_version": version,
     }
 
 
@@ -620,6 +651,7 @@ def update_storage_path(
 def list_update_packages(
     current_user: User = Depends(get_current_user),
     _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
 ):
     update_dir = _updates_dir()
     packages: list[UpdatePackageInfo] = []
@@ -633,6 +665,7 @@ def list_update_packages(
                     channel=_parse_package_channel(item.name),
                     size_bytes=stat.st_size,
                     modified_at=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+                    version=_get_version_for_package(db, item.name),
                 )
             )
     return packages
@@ -727,12 +760,14 @@ def fetch_latest_update_package(
 
     stat = target_path.stat()
     _store_notes_for_package(db, target_name, notes)
+    _store_version_for_package(db, target_name, version)
     return UpdatePackageInfo(
         name=target_name,
         channel=channel,
         size_bytes=stat.st_size,
         modified_at=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
         release_notes=notes,
+        version=version,
     )
 
 
@@ -904,7 +939,18 @@ def apply_update_package(
                 "release_notes": release_notes,
             }
             if result.returncode == 0 and not payload.dry_run:
-                status_payload.update(_save_installed_update(db, package_name))
+                # Try to read the semantic version embedded in the package
+                pkg_version: str | None = None
+                try:
+                    version_file = extract_path / "payload" / "version.json"
+                    if version_file.exists():
+                        import json as _json
+                        pkg_version = _json.loads(version_file.read_text())["app_version"]
+                except Exception:
+                    pass
+                if pkg_version is None:
+                    pkg_version = _get_version_for_package(db, package_name)
+                status_payload.update(_save_installed_update(db, package_name, pkg_version))
             else:
                 status_payload.update(_get_installed_update(db))
             _save_update_status(db, status_payload)

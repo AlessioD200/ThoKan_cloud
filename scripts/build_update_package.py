@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import tarfile
 import tempfile
@@ -99,6 +100,13 @@ def main() -> int:
         payload_root.mkdir(parents=True, exist_ok=True)
 
         copy_repo_payload(root, payload_root)
+
+        # Write version metadata into the payload so the backend can read it after extraction
+        sem_ver = args.version.split("+")[0] if "+" in args.version else args.version
+        build_id = args.version.split("+")[1] if "+" in args.version else ""
+        version_info = {"app_version": sem_ver, "build": build_id, "full_version": args.version}
+        (payload_root / "version.json").write_text(json.dumps(version_info, indent=2))
+
         shutil.copy2(update_script, staging_root / "update.sh")
 
         with tarfile.open(package_path, "w:gz") as archive:
