@@ -19,7 +19,7 @@ fi
 
 if [[ "${DRY_RUN}" == "1" ]]; then
   echo "[ThoKan update] DRY RUN: would sync payload to ${TARGET_ROOT}"
-  echo "rsync -a --delete ${PAYLOAD_DIR}/ ${TARGET_ROOT}/"
+  echo "rsync -a --delete --ignore-errors --exclude storage/ ${PAYLOAD_DIR}/ ${TARGET_ROOT}/"
   exit 0
 fi
 
@@ -30,7 +30,7 @@ fi
 
 echo "[ThoKan update] Syncing payload to ${TARGET_ROOT}..."
 if command -v rsync &>/dev/null; then
-  rsync -a --delete --ignore-errors "${PAYLOAD_DIR}/" "${TARGET_ROOT}/" || { rc=$?; [[ $rc -eq 23 || $rc -eq 24 ]] || exit $rc; }
+  rsync -a --delete --ignore-errors --exclude "storage/" "${PAYLOAD_DIR}/" "${TARGET_ROOT}/" || { rc=$?; [[ $rc -eq 23 || $rc -eq 24 ]] || exit $rc; }
 else
   echo "[ThoKan update] rsync not found, falling back to cp"
   cp -a "${PAYLOAD_DIR}/." "${TARGET_ROOT}/"

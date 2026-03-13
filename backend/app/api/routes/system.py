@@ -28,7 +28,7 @@ UPDATE_CONFIG_KEY = "system_update_config"
 DEFAULT_GITHUB_UPDATE_REPO = "AlessioD200/ThoKan_cloud"
 DEFAULT_GITHUB_UPDATE_BRANCH = "update-channel"
 TARGET_INSTALL_ROOT = Path("/opt/thokan-cloud")
-PRODUCTION_DOCKER_UPDATE_COMMAND = "if command -v sudo >/dev/null 2>&1; then sudo docker compose -f docker-compose.prod.yml up -d --build; else docker compose -f docker-compose.prod.yml up -d --build; fi"
+PRODUCTION_DOCKER_UPDATE_COMMAND = "if command -v docker >/dev/null 2>&1; then if command -v sudo >/dev/null 2>&1; then sudo docker compose -f docker-compose.prod.yml up -d --build; else docker compose -f docker-compose.prod.yml up -d --build; fi; else echo '[ThoKan update] docker command not found, skipping Docker rebuild.'; fi"
 NOTES_CACHE_KEY = "update_notes_cache"
 
 
@@ -351,7 +351,7 @@ echo "[ThoKan update] channel=${CHANNEL} dry_run=${DRY_RUN}"
 
 if [[ "${DRY_RUN}" == "1" ]]; then
   echo "[ThoKan update] DRY RUN: would sync payload to ${TARGET_ROOT}"
-  echo "rsync -a --delete ${PAYLOAD_DIR}/ ${TARGET_ROOT}/"
+    echo "rsync -a --delete --ignore-errors --exclude storage/ ${PAYLOAD_DIR}/ ${TARGET_ROOT}/"
   exit 0
 fi
 
@@ -362,7 +362,7 @@ fi
 
 echo "[ThoKan update] Syncing payload to ${TARGET_ROOT}..."
 if command -v rsync &>/dev/null; then
-  rsync -a --delete --ignore-errors "${PAYLOAD_DIR}/" "${TARGET_ROOT}/" || { rc=$?; [[ $rc -eq 23 || $rc -eq 24 ]] || exit $rc; }
+    rsync -a --delete --ignore-errors --exclude "storage/" "${PAYLOAD_DIR}/" "${TARGET_ROOT}/" || { rc=$?; [[ $rc -eq 23 || $rc -eq 24 ]] || exit $rc; }
 else
   echo "[ThoKan update] rsync not found, falling back to cp"
   cp -a "${PAYLOAD_DIR}/." "${TARGET_ROOT}/"
@@ -381,7 +381,7 @@ echo "[ThoKan update] Package payload applied successfully."
                 tarf.add(str(payload_dir), arcname="payload")
 
             # Now execute update.sh similarly to apply_update_package (but without docker/ubuntu post-steps)
-            with tempfile.TemporaryDirectory(dir=str(update_dir)) as extract_tmp:
+            with tempfile.TemporaryDirectory(prefix="thokan-update-") as extract_tmp:
                 extract_path = Path(extract_tmp)
                 with tarfile.open(target_path, "r:gz") as archive:
                     _safe_extract_tar(archive, extract_path)
@@ -771,11 +771,14 @@ def apply_update_package(
                             'TARGET_ROOT="${THOKAN_TARGET_ROOT:-/opt/thokan-cloud}"',
                         )
                     old_rsync = 'rsync -a --delete --ignore-errors "${PAYLOAD_DIR}/" "${TARGET_ROOT}/"'
-                    new_rsync = old_rsync + ' || { rc=$?; [[ $rc -eq 23 || $rc -eq 24 ]] || exit $rc; }'
+                    new_rsync = 'rsync -a --delete --ignore-errors --exclude "storage/" "${PAYLOAD_DIR}/" "${TARGET_ROOT}/"'
+                    rsync_guard = ' || { rc=$?; [[ $rc -eq 23 || $rc -eq 24 ]] || exit $rc; }'
+                    if (old_rsync + rsync_guard) in patched and '--exclude "storage/"' not in patched:
+                        patched = patched.replace(old_rsync + rsync_guard, new_rsync + rsync_guard)
                     if old_rsync in patched and "rc=$?" not in patched:
-                        patched = patched.replace(old_rsync, new_rsync)
+                        patched = patched.replace(old_rsync, new_rsync + rsync_guard)
                     old_rsync_bare = 'rsync -a --delete "${PAYLOAD_DIR}/" "${TARGET_ROOT}/"'
-                    new_rsync_bare = 'rsync -a --delete --ignore-errors "${PAYLOAD_DIR}/" "${TARGET_ROOT}/" || { rc=$?; [[ $rc -eq 23 || $rc -eq 24 ]] || exit $rc; }'
+                    new_rsync_bare = new_rsync + rsync_guard
                     if old_rsync_bare in patched and "--ignore-errors" not in patched:
                         patched = patched.replace(old_rsync_bare, new_rsync_bare)
                     if patched != script_content:
