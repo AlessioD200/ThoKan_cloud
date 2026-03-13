@@ -29,7 +29,12 @@ if [[ ! -d "${TARGET_ROOT}" ]]; then
 fi
 
 echo "[ThoKan update] Syncing payload to ${TARGET_ROOT}..."
-rsync -a --delete "${PAYLOAD_DIR}/" "${TARGET_ROOT}/"
+if command -v rsync &>/dev/null; then
+  rsync -a --delete "${PAYLOAD_DIR}/" "${TARGET_ROOT}/"
+else
+  echo "[ThoKan update] rsync not found, falling back to cp"
+  cp -a "${PAYLOAD_DIR}/." "${TARGET_ROOT}/"
+fi
 
 echo "[ThoKan update] Package payload applied successfully."
 echo "[ThoKan update] Docker rebuild + Ubuntu update are handled by server automation settings."

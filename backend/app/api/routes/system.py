@@ -291,10 +291,13 @@ def fetch_and_apply_github(
             payload_dir.mkdir(parents=True, exist_ok=True)
 
             # Copy repo contents into payload/
-            rsync_cmd = f"rsync -a --delete {repo_dir}/ {payload_dir}/"
-            rsync_result = _run_shell_command(rsync_cmd)
-            if rsync_result.returncode != 0:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to prepare payload: {rsync_result.stderr}")
+            if shutil.which("rsync"):
+                rsync_cmd = f"rsync -a --delete {repo_dir}/ {payload_dir}/"
+                rsync_result = _run_shell_command(rsync_cmd)
+                if rsync_result.returncode != 0:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to prepare payload: {rsync_result.stderr}")
+            else:
+                shutil.copytree(str(repo_dir), str(payload_dir), dirs_exist_ok=True)
 
             # Write a simple update.sh that mirrors expected structure
             update_sh = tmp / "update.sh"
@@ -320,7 +323,12 @@ if [[ ! -d "${TARGET_ROOT}" ]]; then
 fi
 
 echo "[ThoKan update] Syncing payload to ${TARGET_ROOT}..."
-rsync -a --delete "${PAYLOAD_DIR}/" "${TARGET_ROOT}/"
+if command -v rsync &>/dev/null; then
+  rsync -a --delete "${PAYLOAD_DIR}/" "${TARGET_ROOT}/"
+else
+  echo "[ThoKan update] rsync not found, falling back to cp"
+  cp -a "${PAYLOAD_DIR}/." "${TARGET_ROOT}/"
+fi
 
 echo "[ThoKan update] Package payload applied successfully."
 """,
