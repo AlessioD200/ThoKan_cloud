@@ -16,7 +16,7 @@ import {
   WandSparkles,
 } from "lucide-react";
 import { LayoutShell } from "@/components/layout-shell";
-import { api, apiRaw } from "@/lib/api";
+import { api, apiRaw, getApiBase } from "@/lib/api";
 
 type StorageInfo = {
   current_path: string;
@@ -64,6 +64,8 @@ type UpdateStatus = {
   progress?: number | null;
   progress_step?: string | null;
   release_notes?: string | null;
+  installed_package_name?: string | null;
+  installed_build_date?: string | null;
 };
 
 type AptStatus = {
@@ -172,6 +174,19 @@ function getUpdateStateTone(state?: string) {
   return "bg-card/40 text-fg";
 }
 
+function getBuildDateFromPackageName(value?: string | null): string {
+  if (!value) return "-";
+  const match = value.match(/^(\d{4})(\d{2})(\d{2})/);
+  if (!match) return "-";
+  return `${match[1]}-${match[2]}-${match[3]}`;
+}
+
+function isLikelyRestartInterruption(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return message.includes("cannot reach api server") || message.includes("failed to fetch") || message.includes("networkerror");
+}
+
 export default function SettingsPage() {
   const [info, setInfo] = useState<SystemInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -228,6 +243,61 @@ export default function SettingsPage() {
     loadCurrentUser();
     loadAptStatus();
   }, []);
+
+  function markUpdateRunning(packageName: string) {
+    setUpdateStatus((prev) => ({
+      ...prev,
+      state: "running",
+      package_name: packageName,
+      channel: updateChannel,
+      started_at: new Date().toISOString(),
+      finished_at: null,
+      return_code: null,
+      stdout: "",
+      stderr: "",
+      progress: 0,
+      progress_step: "Update gestart...",
+    }));
+  }
+
+  function shouldForceReloginAfterRebuild(result: UpdateStatus | null): boolean {
+    if (!result || result.state !== "success") return false;
+    if (dryRun) return false;
+    return Boolean(updateConfig?.auto_rebuild_docker ?? true);
+  }
+
+  async function waitUntilBackendReady(timeoutMs = 180000): Promise<boolean> {
+    if (typeof window === "undefined") return false;
+    const token = localStorage.getItem("access_token");
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      try {
+        const headers = new Headers();
+        if (token) headers.set("Authorization", `Bearer ${token}`);
+        const response = await fetch(`${getApiBase()}/auth/me`, {
+          method: "GET",
+          headers,
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (response.status === 200 || response.status === 401 || response.status === 403) {
+          return true;
+        }
+      } catch {
+        // backend still restarting
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    return false;
+  }
+
+  async function forceReloginAfterRebuild() {
+    setStatus("Server wordt herstart. Je wordt automatisch uitgelogd zodra de backend terug online is...");
+    await waitUntilBackendReady();
+    localStorage.removeItem("access_token");
+    sessionStorage.setItem("auth_notice", "Update toegepast en services herstart. Log opnieuw in om verder te gaan.");
+    window.location.href = "/login";
+  }
 
   async function loadAptStatus() {
     try {
@@ -354,6 +424,7 @@ export default function SettingsPage() {
       const shouldApply = window.confirm(`Pakket ${result.name} is gedownload. Nu installeren?`);
       if (shouldApply) {
         setUpdateBusy(true);
+        markUpdateRunning(result.name);
         try {
           const applied = await api<UpdateStatus>("/system/update/apply", {
             method: "POST",
@@ -369,7 +440,15 @@ export default function SettingsPage() {
           setUpdateStatus(applied);
           setStatus(applied.state === "success" ? "Update voltooid" : "Update mislukt");
           await loadUpdateData();
+          if (shouldForceReloginAfterRebuild(applied)) {
+            await forceReloginAfterRebuild();
+            return;
+          }
         } catch (err) {
+          if (isLikelyRestartInterruption(err) && !dryRun && Boolean(updateConfig?.auto_rebuild_docker ?? true)) {
+            await forceReloginAfterRebuild();
+            return;
+          }
           setStatus(err instanceof Error ? err.message : "Update mislukt");
           await loadUpdateData();
         }
@@ -407,6 +486,7 @@ export default function SettingsPage() {
     if (!selectedPackage) return;
     setUpdateBusy(true);
     setStatus("");
+    markUpdateRunning(selectedPackage);
     try {
       const result = await api<UpdateStatus>("/system/update/apply", {
         method: "POST",
@@ -422,7 +502,15 @@ export default function SettingsPage() {
       setUpdateStatus(result);
       setStatus(result.state === "success" ? "Update voltooid" : "Update mislukt");
       await loadUpdateData();
+      if (shouldForceReloginAfterRebuild(result)) {
+        await forceReloginAfterRebuild();
+        return;
+      }
     } catch (err) {
+      if (isLikelyRestartInterruption(err) && !dryRun && Boolean(updateConfig?.auto_rebuild_docker ?? true)) {
+        await forceReloginAfterRebuild();
+        return;
+      }
       setStatus(err instanceof Error ? err.message : "Update mislukt");
       await loadUpdateData();
     }
@@ -1182,6 +1270,22 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
         >
               <p className="mt-1 text-sm opacity-60">Na een push naar GitHub publiceert de update-workflow een pakket en manifest. Cloud downloadt dat pakket hier en draait na installatie altijd de productie-herbouw.</p>
 
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-border bg-card/30 p-4">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] opacity-50">Huidig geïnstalleerd</p>
+              <p className="mt-2 text-sm font-medium break-all">{updateStatus?.installed_package_name || "Onbekend"}</p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card/30 p-4">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] opacity-50">Build (jaar-maand-dag)</p>
+              <p className="mt-2 text-lg font-semibold">{updateStatus?.installed_build_date || getBuildDateFromPackageName(updateStatus?.installed_package_name)}</p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card/30 p-4">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] opacity-50">Laatste run</p>
+              <p className="mt-2 text-lg font-semibold">{updateStatus?.state || "idle"}</p>
+              <p className="mt-1 text-xs opacity-60">{updateStatus?.finished_at ? new Date(updateStatus.finished_at).toLocaleString() : "Nog geen update uitgevoerd"}</p>
+            </div>
+          </div>
+
           <div className="mt-4 grid gap-3 rounded-[1.5rem] border border-border bg-card/30 p-4 md:grid-cols-2">
             <div>
               <label className="block text-sm font-medium">Updatekanaal</label>
@@ -1275,7 +1379,7 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
               <option value="">Selecteer updatepakket ({updateChannel})</option>
               {channelPackages.map((pkg) => (
                 <option key={pkg.name} value={pkg.name}>
-                  [{pkg.channel || "handmatig"}] {pkg.name}
+                  [{pkg.channel || "handmatig"}] {getBuildDateFromPackageName(pkg.name)}
                 </option>
               ))}
             </select>
@@ -1349,7 +1453,7 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
                   <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-card/60">
                     <div
                       className="h-full rounded-full bg-accent transition-all duration-700"
-                      style={{ width: `${updateStatus?.progress ?? 5}%` }}
+                      style={{ width: `${updateStatus?.progress ?? 0}%` }}
                     />
                   </div>
                 </div>
@@ -1363,7 +1467,9 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
                     </span>
                   </p>
                   {updateStatus.channel && <p className="mt-1">Kanaal: {updateStatus.channel}</p>}
-                  {updateStatus.package_name && <p className="mt-1">Pakket: {updateStatus.package_name}</p>}
+                  {updateStatus.package_name && (
+                    <p className="mt-1">Pakket: {updateStatus.package_name} (build {getBuildDateFromPackageName(updateStatus.package_name)})</p>
+                  )}
                   {typeof updateStatus.return_code === "number" && <p className="mt-1">Returncode: {updateStatus.return_code}</p>}
                   {updateStatus.started_at && <p className="mt-1 opacity-70">Gestart: {new Date(updateStatus.started_at).toLocaleString()}</p>}
                   {updateStatus.finished_at && <p className="mt-1 opacity-70">Afgerond: {new Date(updateStatus.finished_at).toLocaleString()}</p>}

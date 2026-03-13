@@ -30,6 +30,7 @@ DEFAULT_GITHUB_UPDATE_BRANCH = "update-channel"
 TARGET_INSTALL_ROOT = Path("/opt/thokan-cloud")
 PRODUCTION_DOCKER_UPDATE_COMMAND = "if command -v docker >/dev/null 2>&1; then if command -v sudo >/dev/null 2>&1; then sudo docker compose -f docker-compose.prod.yml up -d --build; else docker compose -f docker-compose.prod.yml up -d --build; fi; else echo '[ThoKan update] docker command not found, skipping Docker rebuild.'; fi"
 NOTES_CACHE_KEY = "update_notes_cache"
+INSTALLED_UPDATE_KEY = "system_update_installed"
 
 
 class StorageInfo(BaseModel):
@@ -78,6 +79,8 @@ class UpdateStatus(BaseModel):
     progress: int | None = None
     progress_step: str | None = None
     release_notes: str | None = None
+    installed_package_name: str | None = None
+    installed_build_date: str | None = None
 
 
 class AptStatus(BaseModel):
@@ -311,6 +314,8 @@ def fetch_and_apply_github(
             "return_code": None,
             "stdout": "",
             "stderr": "",
+            "progress": 0,
+            "progress_step": "Update gestart...",
         },
     )
 
@@ -405,6 +410,10 @@ echo "[ThoKan update] Package payload applied successfully."
                     "stdout": (result.stdout or "")[-10000:],
                     "stderr": (result.stderr or "")[-10000:],
                 }
+                if result.returncode == 0 and not payload.dry_run:
+                    status_payload.update(_save_installed_update(db, target_name))
+                else:
+                    status_payload.update(_get_installed_update(db))
                 _save_update_status(db, status_payload)
                 return UpdateStatus(**status_payload)
 
@@ -422,6 +431,7 @@ echo "[ThoKan update] Package payload applied successfully."
             "stdout": "",
             "stderr": str(exc),
         }
+        status_payload.update(_get_installed_update(db))
         _save_update_status(db, status_payload)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Fetch & apply failed: {exc}") from exc
 
@@ -455,6 +465,46 @@ def _save_update_status(db: Session, payload: dict) -> None:
         row = SystemSetting(key=UPDATE_STATUS_KEY, value=payload)
         db.add(row)
     db.commit()
+
+
+def _extract_build_date(package_name: str | None) -> str | None:
+    if not package_name:
+        return None
+    head = package_name.split("_", 1)[0]
+    if len(head) >= 8 and head[:8].isdigit():
+        return f"{head[:4]}-{head[4:6]}-{head[6:8]}"
+    return None
+
+
+def _get_installed_update(db: Session) -> dict:
+    row = db.query(SystemSetting).filter(SystemSetting.key == INSTALLED_UPDATE_KEY).first()
+    if not row or not isinstance(row.value, dict):
+        return {"installed_package_name": None, "installed_build_date": None}
+    package_name = str(row.value.get("package_name") or "") or None
+    build_date = str(row.value.get("build_date") or "") or _extract_build_date(package_name)
+    return {
+        "installed_package_name": package_name,
+        "installed_build_date": build_date,
+    }
+
+
+def _save_installed_update(db: Session, package_name: str) -> dict:
+    value = {
+        "package_name": package_name,
+        "build_date": _extract_build_date(package_name),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    row = db.query(SystemSetting).filter(SystemSetting.key == INSTALLED_UPDATE_KEY).first()
+    if row:
+        row.value = value
+    else:
+        row = SystemSetting(key=INSTALLED_UPDATE_KEY, value=value)
+        db.add(row)
+    db.commit()
+    return {
+        "installed_package_name": value["package_name"],
+        "installed_build_date": value["build_date"],
+    }
 
 
 def _safe_extract_zip(archive: zipfile.ZipFile, target: Path) -> None:
@@ -692,10 +742,13 @@ def get_update_status(
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    installed = _get_installed_update(db)
     row = db.query(SystemSetting).filter(SystemSetting.key == UPDATE_STATUS_KEY).first()
     if not row or not isinstance(row.value, dict):
-        return UpdateStatus(state="idle")
-    return UpdateStatus(**row.value)
+        return UpdateStatus(state="idle", **installed)
+    merged = dict(row.value)
+    merged.update(installed)
+    return UpdateStatus(**merged)
 
 
 @router.post("/update/apply", response_model=UpdateStatus)
@@ -728,8 +781,8 @@ def apply_update_package(
         "return_code": None,
         "stdout": "",
         "stderr": "",
-        "progress": 5,
-        "progress_step": "Pakket uitpakken...",
+        "progress": 0,
+        "progress_step": "Update gestart...",
         "release_notes": release_notes,
     }
     _save_update_status(db, running_status)
@@ -850,6 +903,10 @@ def apply_update_package(
                 "progress_step": "Voltooid" if result.returncode == 0 else "Mislukt",
                 "release_notes": release_notes,
             }
+            if result.returncode == 0 and not payload.dry_run:
+                status_payload.update(_save_installed_update(db, package_name))
+            else:
+                status_payload.update(_get_installed_update(db))
             _save_update_status(db, status_payload)
             return UpdateStatus(**status_payload)
 
@@ -865,6 +922,7 @@ def apply_update_package(
             "stdout": "",
             "stderr": exc.detail,
         }
+        status_payload.update(_get_installed_update(db))
         _save_update_status(db, status_payload)
         raise
     except Exception as exc:
@@ -879,6 +937,7 @@ def apply_update_package(
             "stdout": "",
             "stderr": str(exc),
         }
+        status_payload.update(_get_installed_update(db))
         _save_update_status(db, status_payload)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Update failed: {exc}") from exc
 
