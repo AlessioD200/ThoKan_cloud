@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
-import { ChevronRight, Folder, LayoutGrid, LogOut, Mail, MessageSquareText, Settings, Shield, Sparkles } from "lucide-react";
+import { ChevronRight, Folder, LayoutGrid, LogOut, Mail, MessageSquare, MessageSquareText, Settings, Shield, Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ensureSession } from "@/lib/api";
 
@@ -12,6 +12,7 @@ const items = [
   { href: "/dashboard", label: "Overzicht", icon: LayoutGrid },
   { href: "/files", label: "Bestanden", icon: Folder },
   { href: "/shopify", label: "Shopify", icon: MessageSquareText },
+  { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/mail", label: "E-mail", icon: Mail },
   { href: "/admin", label: "Admin", icon: Shield },
   { href: "/settings", label: "Instellingen", icon: Settings },

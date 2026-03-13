@@ -555,6 +555,27 @@ class SettingsViewModel {
     var updateStatus: UpdateStatusResponse?
     var lastNotifiedUpdateCount = UserDefaults.standard.integer(forKey: "lastUpdateNotificationCount")
 
+    var isUpdateRunning: Bool {
+        let state = updateStatus?.state.lowercased() ?? ""
+        return state == "running"
+    }
+
+    var updateProgressValue: Double? {
+        guard let progress = updateStatus?.progress else { return nil }
+        let normalized = min(max(progress, 0), 100)
+        return Double(normalized) / 100.0
+    }
+
+    var updateProgressLabel: String {
+        if let step = updateStatus?.progress_step, !step.isEmpty {
+            return step
+        }
+        if let progress = updateStatus?.progress {
+            return "\(min(max(progress, 0), 100))%"
+        }
+        return "Preparing update..."
+    }
+
     @MainActor
     func load() async {
         isLoading = true
@@ -705,20 +726,57 @@ class SettingsViewModel {
 
         isApplyingUpdate = true
         errorMessage = nil
+        statusMessage = "Wacht even... update wordt gestart."
 
         do {
             let status = try await apiClient.applyUpdate(packageName: latestPackage.name, channel: latestPackage.channel)
             updateStatus = status
-            availableUpdateCandidate = nil
-            if let installedVersion = status.installed_version, !installedVersion.isEmpty {
+            if status.state.lowercased() == "running" {
+                await monitorRunningUpdate()
+            }
+
+            if updateStatus?.state.lowercased() == "success" {
+                availableUpdateCandidate = nil
+            }
+
+            if let installedVersion = updateStatus?.installed_version, !installedVersion.isEmpty {
                 currentInstalledVersion = installedVersion
             }
-            statusMessage = "Update started for \(latestPackage.name)"
+
+            if updateStatus?.state.lowercased() == "success" {
+                statusMessage = "Update completed for \(latestPackage.name)"
+            } else if updateStatus?.state.lowercased() == "failed" {
+                let detail = updateStatus?.stderr?.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let detail, !detail.isEmpty {
+                    errorMessage = detail
+                } else {
+                    errorMessage = "Update failed"
+                }
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
 
         isApplyingUpdate = false
+    }
+
+    @MainActor
+    private func monitorRunningUpdate() async {
+        for _ in 0..<180 {
+            do {
+                let latestStatus = try await apiClient.fetchUpdateStatus()
+                updateStatus = latestStatus
+
+                let state = latestStatus.state.lowercased()
+                if state == "success" || state == "failed" {
+                    break
+                }
+            } catch {
+                break
+            }
+
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
     }
 
     @MainActor

@@ -763,7 +763,9 @@ struct AdminTab: View {
                     List {
                         if selectedSegment == 0 {
                             ForEach(filteredUsers, id: \.id) { user in
-                                UserRow(user: user)
+                                UserRow(user: user) {
+                                    selectedChatUser = user
+                                }
                                     .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                         Button {
                                             selectedChatUser = user
@@ -1166,6 +1168,28 @@ struct SettingsTab: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
+
+                        if viewModel.isApplyingUpdate || viewModel.isUpdateRunning {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Wacht even...")
+                                    .font(.subheadline.weight(.semibold))
+
+                                if let progress = viewModel.updateProgressValue {
+                                    ProgressView(value: progress)
+                                    Text(viewModel.updateProgressLabel)
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    ProgressView()
+                                    Text(viewModel.updateProgressLabel)
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
                     }
                 }
 
@@ -1368,24 +1392,36 @@ struct ShopifyEventDetailView: View {
 
 struct UserRow: View {
     let user: AdminUserResponse
-    
+    var onChat: (() -> Void)? = nil
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "person.circle.fill")
                 .font(.system(size: 32))
                 .foregroundStyle(.tint)
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(user.full_name)
                     .font(.system(size: 14, weight: .semibold))
-                
+
                 Text(user.email)
                     .font(.system(size: 12, weight: .regular))
                     .foregroundStyle(.secondary)
             }
-            
+
             Spacer()
-            
+
+            if let onChat {
+                Button {
+                    onChat()
+                } label: {
+                    Label("Chat", systemImage: "message")
+                        .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
             Text(user.is_active ? "Active" : "Inactive")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(user.is_active ? .green : .secondary)

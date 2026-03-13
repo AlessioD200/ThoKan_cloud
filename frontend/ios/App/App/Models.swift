@@ -306,6 +306,8 @@ struct UpdateStatusResponse: Decodable {
     let return_code: Int?
     let stdout: String?
     let stderr: String?
+    let progress: Int?
+    let progress_step: String?
     let release_notes: String?
     let installed_version: String?
 
@@ -318,6 +320,8 @@ struct UpdateStatusResponse: Decodable {
         case return_code
         case stdout
         case stderr
+        case progress
+        case progress_step
         case release_notes
         case installed_version
     }
@@ -331,6 +335,8 @@ struct UpdateStatusResponse: Decodable {
         finished_at = try? container.decodeIfPresent(String.self, forKey: .finished_at)
         stdout = try? container.decodeIfPresent(String.self, forKey: .stdout)
         stderr = try? container.decodeIfPresent(String.self, forKey: .stderr)
+        progress = try? container.decodeIfPresent(Int.self, forKey: .progress)
+        progress_step = try? container.decodeIfPresent(String.self, forKey: .progress_step)
         release_notes = try? container.decodeIfPresent(String.self, forKey: .release_notes)
         installed_version = try? container.decodeIfPresent(String.self, forKey: .installed_version)
 

@@ -19,6 +19,28 @@ class ChatSendRequest(BaseModel):
     body: str
 
 
+@router.get("/users")
+def list_chat_users(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    users = (
+        db.query(User)
+        .filter(User.is_active.is_(True), User.id != current_user.id)
+        .order_by(User.full_name.asc())
+        .all()
+    )
+    return [
+        {
+            "id": str(user.id),
+            "email": user.email,
+            "full_name": user.full_name,
+            "is_active": user.is_active,
+        }
+        for user in users
+    ]
+
+
 def _conversation_key(user_a: uuid.UUID, user_b: uuid.UUID) -> str:
     left, right = sorted([str(user_a), str(user_b)])
     return f"user-chat:{left}:{right}"
