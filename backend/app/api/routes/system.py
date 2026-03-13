@@ -851,24 +851,30 @@ def apply_update_package(
 
             if script_path.name == "update.sh":
                 try:
+                    import re as _re
                     script_content = script_path.read_text(encoding="utf-8")
                     patched = script_content
+                    # Fix hard-coded install root in old packages
                     if 'TARGET_ROOT="/opt/thokan-cloud"' in patched and "THOKAN_TARGET_ROOT" not in patched:
                         patched = patched.replace(
                             'TARGET_ROOT="/opt/thokan-cloud"',
                             'TARGET_ROOT="${THOKAN_TARGET_ROOT:-/opt/thokan-cloud}"',
                         )
-                    old_rsync = 'rsync -a --delete --ignore-errors "${PAYLOAD_DIR}/" "${TARGET_ROOT}/"'
-                    new_rsync = 'rsync -a --delete --ignore-errors --exclude "storage/" "${PAYLOAD_DIR}/" "${TARGET_ROOT}/"'
-                    rsync_guard = ' || { rc=$?; [[ $rc -eq 23 || $rc -eq 24 ]] || exit $rc; }'
-                    if (old_rsync + rsync_guard) in patched and '--exclude "storage/"' not in patched:
-                        patched = patched.replace(old_rsync + rsync_guard, new_rsync + rsync_guard)
-                    if old_rsync in patched and "rc=$?" not in patched:
-                        patched = patched.replace(old_rsync, new_rsync + rsync_guard)
-                    old_rsync_bare = 'rsync -a --delete "${PAYLOAD_DIR}/" "${TARGET_ROOT}/"'
-                    new_rsync_bare = new_rsync + rsync_guard
-                    if old_rsync_bare in patched and "--ignore-errors" not in patched:
-                        patched = patched.replace(old_rsync_bare, new_rsync_bare)
+                    # Replace any rsync --delete call that is missing the full exclude set.
+                    # Matches lines like: rsync -a --delete [options] "${PAYLOAD_DIR}/" "${TARGET_ROOT}/"
+                    full_rsync = (
+                        'rsync -a --delete --ignore-errors'
+                        ' --exclude "storage/" --exclude ".git/" --exclude ".venv/"'
+                        ' --exclude "node_modules/" --exclude ".next/" --exclude "__pycache__/" --exclude "*.pyc"'
+                        ' "${PAYLOAD_DIR}/" "${TARGET_ROOT}/"'
+                        ' || { rc=$?; [[ $rc -eq 23 || $rc -eq 24 ]] || exit $rc; }'
+                    )
+                    patched = _re.sub(
+                        r'rsync\s+-a\s+--delete.*?"\$\{PAYLOAD_DIR\}/"\s+"\$\{TARGET_ROOT\}/"'
+                        r'(?:\s*\|\|\s*\{[^}]*\})?',
+                        full_rsync,
+                        patched,
+                    )
                     if patched != script_content:
                         script_path.write_text(patched, encoding="utf-8")
                 except Exception:
