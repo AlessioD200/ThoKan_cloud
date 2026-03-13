@@ -65,7 +65,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
         <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_35%),radial-gradient(circle_at_bottom,_rgba(14,165,233,0.08),_transparent_30%)]" />
         <main className="relative px-3 py-3">{children}</main>
 
-        <nav className="bottom-safe-lift fixed inset-x-3 z-30 rounded-[1.75rem] border border-border/60 bg-card/90 p-2 shadow-glass backdrop-blur-md">
+        <nav className="bottom-safe-lift fixed inset-x-3 z-30 rounded-[1.75rem] border border-border/60 bg-card/90 p-2 shadow-glass backdrop-blur-md hide-scrollbar">
           <div className="grid grid-cols-6 gap-1">
             {items.map((item) => {
               const active = pathname.startsWith(item.href);
@@ -118,7 +118,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <nav className="mt-4 flex-1 space-y-2 overflow-y-auto pr-1">
+            <nav className="mt-4 flex-1 space-y-2 overflow-y-auto pr-1 hide-scrollbar">
               {items.map((item) => {
                 const active = pathname.startsWith(item.href);
                 const Icon = item.icon;
