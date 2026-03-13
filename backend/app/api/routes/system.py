@@ -1000,24 +1000,26 @@ def apply_update_package(
                 except Exception:
                     package_git_commit = None
 
-            if result.returncode == 0 and not payload.dry_run and package_git_commit:
+            if result.returncode == 0 and not payload.dry_run:
                 target_root = _resolve_install_root()
                 if (target_root / ".git").exists():
                     running_status.update({"progress": 90, "progress_step": "Git werkmap synchroniseren..."})
                     _save_update_status(db, running_status)
+                    # Use specific commit when known, otherwise reset to remote tracking branch
+                    if package_git_commit:
+                        reset_target = package_git_commit
+                    else:
+                        reset_target = "$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo 'origin/main')"
+                    safe_git = 'git -c safe.directory="$(pwd)"'
                     sync_result = _run_shell_command_in_root(
-                        f"git fetch --all --prune && git reset --hard {package_git_commit} && git clean -fd",
+                        f"{safe_git} fetch --all --prune && {safe_git} reset --hard {reset_target} && {safe_git} clean -fd",
                         timeout_seconds=300,
                     )
                     post_stdout.append(f"\n[Git sync]\n{sync_result.stdout or ''}")
                     post_stderr.append(f"\n[Git sync]\n{sync_result.stderr or ''}")
+                    # Git sync failure is non-fatal: log it but don't mark update as failed
                     if sync_result.returncode != 0:
-                        result = subprocess.CompletedProcess(
-                            args=result.args,
-                            returncode=sync_result.returncode,
-                            stdout=(result.stdout or "") + "".join(post_stdout),
-                            stderr=(result.stderr or "") + "".join(post_stderr),
-                        )
+                        post_stdout.append("\n[Git sync] Waarschuwing: git sync mislukt, update zelf is geslaagd.")
 
             finished_at = datetime.now(timezone.utc).isoformat()
             status_payload = {
