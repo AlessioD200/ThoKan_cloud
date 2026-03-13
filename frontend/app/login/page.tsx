@@ -22,7 +22,7 @@ export default function LoginPage() {
       const authenticated = await ensureSession({ requireConfirmedAuth: true });
       if (cancelled) return;
       if (authenticated) {
-        router.replace("/dashboard");
+        window.location.replace(`/dashboard?r=${Date.now()}`);
       }
     }
 
@@ -78,7 +78,7 @@ export default function LoginPage() {
         // Ignore storage errors.
       }
       
-      router.push("/dashboard");
+      window.location.replace(`/dashboard?r=${Date.now()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Inloggen mislukt");
     } finally {

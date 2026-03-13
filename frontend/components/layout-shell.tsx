@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 import { ChevronRight, Folder, LayoutGrid, LogOut, Mail, MessageSquareText, Settings, Shield, Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -19,7 +19,6 @@ const items = [
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const isNative = Capacitor.isNativePlatform();
   const [authChecked, setAuthChecked] = useState(false);
   const activeItem = items.find((item) => pathname.startsWith(item.href)) ?? items[0];
@@ -31,7 +30,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       const authenticated = await ensureSession();
       if (cancelled) return;
       if (!authenticated) {
-        router.replace("/login");
+        window.location.replace(`/login?r=${Date.now()}`);
         return;
       }
       setAuthChecked(true);
@@ -42,11 +41,15 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, []);
 
   function handleLogout() {
-    localStorage.removeItem("access_token");
-    router.replace("/login");
+    try {
+      localStorage.removeItem("access_token");
+    } catch {
+      // Ignore storage errors.
+    }
+    window.location.replace(`/login?r=${Date.now()}`);
   }
 
   if (!authChecked) {
