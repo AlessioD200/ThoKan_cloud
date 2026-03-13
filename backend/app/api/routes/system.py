@@ -182,7 +182,7 @@ def _resolve_install_root() -> Path:
         return Path(override).expanduser().resolve()
 
     repo_root = _repo_install_root()
-    if repo_root.exists() and repo_root.is_dir():
+    if repo_root.exists() and repo_root.is_dir() and repo_root != Path("/app"):
         return repo_root
 
     return TARGET_INSTALL_ROOT
