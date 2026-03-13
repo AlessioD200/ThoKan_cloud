@@ -521,6 +521,31 @@ class DirectChatViewModel {
 }
 
 @Observable
+class DirectChatUsersViewModel {
+    @ObservationIgnored
+    private let apiClient = APIClient.shared
+
+    var users: [DirectChatParticipant] = []
+    var isLoading = false
+    var errorMessage: String?
+
+    @MainActor
+    func loadUsers() async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            users = try await apiClient.fetchDirectChatUsers()
+        } catch {
+            users = []
+            errorMessage = error.localizedDescription
+        }
+
+        isLoading = false
+    }
+}
+
+@Observable
 class SettingsViewModel {
     @ObservationIgnored
     private let apiClient = APIClient.shared

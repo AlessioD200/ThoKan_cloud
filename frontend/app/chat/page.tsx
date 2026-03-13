@@ -29,12 +29,23 @@ export default function ChatPage() {
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [lastIncomingMessageId, setLastIncomingMessageId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [search, setSearch] = useState("");
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingConversation, setLoadingConversation] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+
+  async function loadCurrentUser() {
+    try {
+      const me = await api<{ id: string }>("/auth/me");
+      setCurrentUserId(me.id || "");
+    } catch {
+      setCurrentUserId("");
+    }
+  }
 
   async function loadUsers() {
     setLoadingUsers(true);
@@ -56,6 +67,8 @@ export default function ChatPage() {
     try {
       const response = await api<ChatConversation>(`/chat/conversations/${user.id}`);
       setMessages(response.messages || []);
+      const latestIncoming = (response.messages || []).slice().reverse().find((message) => message.sender_id !== currentUserId);
+      setLastIncomingMessageId(latestIncoming?.id || null);
     } catch (err) {
       setMessages([]);
       setError(err instanceof Error ? err.message : "Chat laden mislukt");
@@ -85,8 +98,43 @@ export default function ChatPage() {
   }
 
   useEffect(() => {
+    void loadCurrentUser();
     void loadUsers();
   }, []);
+
+  useEffect(() => {
+    if (!selectedUser) return;
+    const interval = setInterval(async () => {
+      try {
+        const response = await api<ChatConversation>(`/chat/conversations/${selectedUser.id}`);
+        const latestMessages = response.messages || [];
+        setMessages(latestMessages);
+
+        const latestIncoming = latestMessages.slice().reverse().find((message) => message.sender_id !== currentUserId);
+        if (!latestIncoming) return;
+        if (!lastIncomingMessageId) {
+          setLastIncomingMessageId(latestIncoming.id);
+          return;
+        }
+        if (latestIncoming.id !== lastIncomingMessageId) {
+          setLastIncomingMessageId(latestIncoming.id);
+          if (typeof window !== "undefined" && "Notification" in window) {
+            if (Notification.permission === "default") {
+              Notification.requestPermission().catch(() => undefined);
+            } else if (Notification.permission === "granted" && document.hidden) {
+              new Notification(`Nieuw bericht van ${selectedUser.full_name}`, {
+                body: latestIncoming.body,
+              });
+            }
+          }
+        }
+      } catch {
+        // polling is best-effort
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [selectedUser, currentUserId, lastIncomingMessageId]);
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -173,12 +221,19 @@ export default function ChatPage() {
                   ) : messages.length === 0 ? (
                     <p className="text-sm opacity-70">Nog geen berichten.</p>
                   ) : (
-                    messages.map((message) => (
-                      <div key={message.id} className="rounded-xl border border-border/70 bg-card/35 px-3 py-2">
-                        <p className="text-sm">{message.body}</p>
-                        <p className="mt-1 text-[11px] opacity-55">{new Date(message.created_at).toLocaleString()}</p>
-                      </div>
-                    ))
+                    messages.map((message) => {
+                      const ownMessage = message.sender_id === currentUserId;
+                      const senderLabel = ownMessage ? "Jij" : selectedUser.full_name;
+                      return (
+                        <div key={message.id} className={`flex ${ownMessage ? "justify-end" : "justify-start"}`}>
+                          <div className={`max-w-[85%] rounded-xl border px-3 py-2 ${ownMessage ? "border-accent/40 bg-accent/15" : "border-border/70 bg-card/35"}`}>
+                            <p className="text-[11px] font-medium opacity-65">{senderLabel}</p>
+                            <p className="mt-1 text-sm">{message.body}</p>
+                            <p className="mt-1 text-[11px] opacity-55">{new Date(message.created_at).toLocaleString()}</p>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
 

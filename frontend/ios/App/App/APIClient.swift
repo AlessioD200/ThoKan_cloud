@@ -183,6 +183,11 @@ class APIClient: NSObject {
         return try await request(URLRequest(url: url))
     }
 
+    func fetchDirectChatUsers() async throws -> [DirectChatParticipant] {
+        let url = URL(string: "\(baseURL)/chat/users")!
+        return try await request(URLRequest(url: url))
+    }
+
     func sendDirectChatMessage(userId: String, body: String) async throws -> MessageResponse {
         let url = URL(string: "\(baseURL)/chat/conversations/\(userId)")!
         var request = URLRequest(url: url)

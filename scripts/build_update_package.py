@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import tarfile
 import tempfile
@@ -81,6 +82,30 @@ def copy_repo_payload(source_root: Path, payload_root: Path) -> None:
         shutil.copy2(source, destination)
 
 
+def sync_payload_versions(payload_root: Path, semver: str) -> None:
+    frontend_package = payload_root / "frontend" / "package.json"
+    if frontend_package.exists():
+        data = json.loads(frontend_package.read_text(encoding="utf-8"))
+        data["version"] = semver
+        frontend_package.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+    ios_project = payload_root / "frontend" / "ios" / "App" / "App.xcodeproj" / "project.pbxproj"
+    if ios_project.exists():
+        content = ios_project.read_text(encoding="utf-8")
+        content = re.sub(r"MARKETING_VERSION = [^;]+;", f"MARKETING_VERSION = {semver};", content)
+        content = re.sub(r"CURRENT_PROJECT_VERSION = [^;]+;", f"CURRENT_PROJECT_VERSION = {semver};", content)
+        ios_project.write_text(content, encoding="utf-8")
+
+    for channel in ("stable", "beta"):
+        manifest = payload_root / "scripts" / "update_templates" / f"update-manifest.{channel}.json"
+        if not manifest.exists():
+            continue
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        data["version"] = semver
+        data["package_url"] = f"https://updates.your-domain.com/{channel}/thokan-update-{semver}.tar.gz"
+        manifest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     args = parse_args()
     root = repo_root()
@@ -88,6 +113,7 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     safe_version = "".join(ch for ch in args.version if ch.isalnum() or ch in {"-", "_", "."})
+    sem_ver = args.version.split("+", 1)[0] if "+" in args.version else args.version
     package_name = f"thokan-cloud-{args.channel}-{safe_version}.tar.gz"
     package_path = output_dir / package_name
     update_script = root / "scripts" / "update_templates" / "update.sh"
@@ -100,9 +126,9 @@ def main() -> int:
         payload_root.mkdir(parents=True, exist_ok=True)
 
         copy_repo_payload(root, payload_root)
+        sync_payload_versions(payload_root, sem_ver)
 
         # Write version metadata into the payload so the backend can read it after extraction
-        sem_ver = args.version.split("+")[0] if "+" in args.version else args.version
         build_id = args.version.split("+")[1] if "+" in args.version else ""
         version_info = {"app_version": sem_ver, "build": build_id, "full_version": args.version}
         (payload_root / "version.json").write_text(json.dumps(version_info, indent=2))

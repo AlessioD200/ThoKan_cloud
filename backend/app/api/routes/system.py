@@ -124,6 +124,8 @@ class GitHubFetchApplyRequest(BaseModel):
     branch: str = "main"
     channel: str = "stable"
     dry_run: bool = False
+    auto_rebuild_docker: bool | None = None
+    auto_update_ubuntu: bool | None = None
 
 
 def _get_notes_for_package(db: Session, package_name: str) -> str | None:
@@ -336,36 +338,19 @@ def fetch_and_apply_github(
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """Clone a GitHub repo, build an update package (update.sh + payload/), and run the update script.
+    """Clone a GitHub repo, build an updater package and apply it via the same pipeline as cloud packages.
 
-    The package will be stored in the server updates directory and applied immediately.
+    This keeps git-based updates and cloud updates behaviorally identical.
     """
     channel = _normalize_channel(payload.channel)
     update_dir = _updates_dir()
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    safe_branch = _safe_name(payload.branch)
     parsed = urlparse(payload.repo_url)
     repo_name = _safe_name(Path(parsed.path).stem) or "repo"
-    target_name = f"{timestamp}_{channel}_{repo_name}.tar.gz"
+    safe_branch = _safe_name(payload.branch) or "main"
+    target_name = f"{timestamp}_{channel}_{repo_name}_{safe_branch}.tar.gz"
     target_path = update_dir / target_name
-
-    started_at = datetime.now(timezone.utc).isoformat()
-    _save_update_status(
-        db,
-        {
-            "state": "running",
-            "package_name": target_name,
-            "channel": channel,
-            "started_at": started_at,
-            "finished_at": None,
-            "return_code": None,
-            "stdout": "",
-            "stderr": "",
-            "progress": 0,
-            "progress_step": "Update gestart...",
-        },
-    )
 
     try:
         with tempfile.TemporaryDirectory(dir=str(update_dir)) as tmpdir:
@@ -377,11 +362,24 @@ def fetch_and_apply_github(
             if git_result.returncode != 0:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Git clone failed: {git_result.stderr}")
 
-            # Prepare package layout: update.sh at root, payload/ contains repo files
+            sync_script = repo_dir / "scripts" / "sync_version.py"
+            if sync_script.exists():
+                sync_result = subprocess.run(
+                    ["python3", str(sync_script)],
+                    cwd=str(repo_dir),
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                if sync_result.returncode != 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Version sync failed in cloned repo: {sync_result.stderr or sync_result.stdout}",
+                    )
+
             payload_dir = tmp / "package_payload"
             payload_dir.mkdir(parents=True, exist_ok=True)
 
-            # Copy repo contents into payload/
             if shutil.which("rsync"):
                 rsync_cmd = f"rsync -a --delete {repo_dir}/ {payload_dir}/"
                 rsync_result = _run_shell_command(rsync_cmd)
@@ -390,10 +388,30 @@ def fetch_and_apply_github(
             else:
                 shutil.copytree(str(repo_dir), str(payload_dir), dirs_exist_ok=True)
 
-            # Write a simple update.sh that mirrors expected structure
+            repo_version = ""
+            version_file = repo_dir / "VERSION"
+            if version_file.exists():
+                repo_version = version_file.read_text(encoding="utf-8").strip()
+
+            semver = repo_version.split("+", 1)[0].strip() if repo_version else ""
+            build_meta = f"{timestamp}-{safe_branch}"
+            version_info = {
+                "app_version": semver or None,
+                "build": build_meta,
+                "full_version": f"{semver}+{build_meta}" if semver else build_meta,
+                "source": "git",
+                "repo_url": payload.repo_url,
+                "branch": payload.branch,
+            }
+            (payload_dir / "version.json").write_text(json.dumps(version_info, indent=2), encoding="utf-8")
+
             update_sh = tmp / "update.sh"
-            update_sh.write_text(
-                """#!/usr/bin/env bash
+            template_update_sh = repo_dir / "scripts" / "update_templates" / "update.sh"
+            if template_update_sh.exists():
+                update_sh.write_text(template_update_sh.read_text(encoding="utf-8"), encoding="utf-8")
+            else:
+                update_sh.write_text(
+                    """#!/usr/bin/env bash
 set -euo pipefail
 CHANNEL="${THOKAN_UPDATE_CHANNEL:-stable}"
 DRY_RUN="${THOKAN_DRY_RUN:-0}"
@@ -404,7 +422,7 @@ echo "[ThoKan update] channel=${CHANNEL} dry_run=${DRY_RUN}"
 
 if [[ "${DRY_RUN}" == "1" ]]; then
   echo "[ThoKan update] DRY RUN: would sync payload to ${TARGET_ROOT}"
-    echo "rsync -a --delete --ignore-errors --exclude storage/ ${PAYLOAD_DIR}/ ${TARGET_ROOT}/"
+  echo "rsync -a --delete --ignore-errors --exclude storage/ ${PAYLOAD_DIR}/ ${TARGET_ROOT}/"
   exit 0
 fi
 
@@ -415,7 +433,7 @@ fi
 
 echo "[ThoKan update] Syncing payload to ${TARGET_ROOT}..."
 if command -v rsync &>/dev/null; then
-    rsync -a --delete --ignore-errors --exclude "storage/" "${PAYLOAD_DIR}/" "${TARGET_ROOT}/" || { rc=$?; [[ $rc -eq 23 || $rc -eq 24 ]] || exit $rc; }
+  rsync -a --delete --ignore-errors --exclude ".env" --exclude "storage/" --exclude "docker/ssl/" --exclude ".git/" --exclude ".venv/" --exclude "node_modules/" --exclude ".next/" --exclude "__pycache__/" --exclude "*.pyc" "${PAYLOAD_DIR}/" "${TARGET_ROOT}/" || { rc=$?; [[ $rc -eq 23 || $rc -eq 24 ]] || exit $rc; }
 else
   echo "[ThoKan update] rsync not found, falling back to cp"
   cp -a "${PAYLOAD_DIR}/." "${TARGET_ROOT}/"
@@ -423,64 +441,32 @@ fi
 
 echo "[ThoKan update] Package payload applied successfully."
 """,
-                encoding="utf-8",
-            )
+                    encoding="utf-8",
+                )
 
-            # Create tar.gz with update.sh and payload/
             import tarfile as _tar
 
             with _tar.open(target_path, "w:gz") as tarf:
                 tarf.add(str(update_sh), arcname="update.sh")
                 tarf.add(str(payload_dir), arcname="payload")
 
-            # Now execute update.sh similarly to apply_update_package (but without docker/ubuntu post-steps)
-            with tempfile.TemporaryDirectory(prefix="thokan-update-") as extract_tmp:
-                extract_path = Path(extract_tmp)
-                with tarfile.open(target_path, "r:gz") as archive:
-                    _safe_extract_tar(archive, extract_path)
-
-                script_path = (extract_path / "update.sh").resolve()
-                env = os.environ.copy()
-                env["THOKAN_DRY_RUN"] = "1" if payload.dry_run else "0"
-                env["THOKAN_UPDATE_CHANNEL"] = channel
-                env["THOKAN_TARGET_ROOT"] = str(_resolve_install_root())
-
-                result = subprocess.run(["bash", str(script_path)], cwd=str(extract_path), capture_output=True, text=True, env=env, timeout=1800)
-
-                finished_at = datetime.now(timezone.utc).isoformat()
-                status_payload = {
-                    "state": "success" if result.returncode == 0 else "failed",
-                    "package_name": target_name,
-                    "channel": channel,
-                    "started_at": started_at,
-                    "finished_at": finished_at,
-                    "return_code": result.returncode,
-                    "stdout": (result.stdout or "")[-10000:],
-                    "stderr": (result.stderr or "")[-10000:],
-                }
-                if result.returncode == 0 and not payload.dry_run:
-                    status_payload.update(_save_installed_update(db, target_name, None))
-                else:
-                    status_payload.update(_get_installed_update(db))
-                _save_update_status(db, status_payload)
-                return UpdateStatus(**status_payload)
+            return apply_update_package(
+                ApplyUpdateRequest(
+                    package_name=target_name,
+                    channel=channel,
+                    script_name="update.sh",
+                    dry_run=payload.dry_run,
+                    auto_rebuild_docker=payload.auto_rebuild_docker,
+                    auto_update_ubuntu=payload.auto_update_ubuntu,
+                ),
+                current_user=current_user,
+                _=current_user,
+                db=db,
+            )
 
     except HTTPException:
         raise
     except Exception as exc:
-        finished_at = datetime.now(timezone.utc).isoformat()
-        status_payload = {
-            "state": "failed",
-            "package_name": target_name,
-            "channel": channel,
-            "started_at": started_at,
-            "finished_at": finished_at,
-            "return_code": -1,
-            "stdout": "",
-            "stderr": str(exc),
-        }
-        status_payload.update(_get_installed_update(db))
-        _save_update_status(db, status_payload)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Fetch & apply failed: {exc}") from exc
 
 

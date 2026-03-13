@@ -39,6 +39,10 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Sync version from VERSION file
+        run: |
+          python scripts/sync_version.py
+
       - name: Build frontend (generates frontend/out/)
         working-directory: frontend
         run: |
@@ -57,7 +61,11 @@ jobs:
           fi
           short_sha="${GITHUB_SHA::7}"
           timestamp="$(date -u +%Y%m%d%H%M%S)"
-          sem_version="$(cat VERSION 2>/dev/null | tr -d '[:space:]' || echo '1.0.0')"
+          sem_version="$(cat VERSION | tr -d '[:space:]')"
+          if [[ -z "${sem_version}" ]]; then
+            echo "VERSION file is empty" >&2
+            exit 1
+          fi
           version="${sem_version}+${timestamp}-${short_sha}"
           echo "channel=${channel}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"

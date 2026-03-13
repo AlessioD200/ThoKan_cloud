@@ -184,9 +184,9 @@ struct MainTabView: View {
                 }
                 .tag(1)
 
-            ShopifyTab()
+            DirectMessagesTab()
                 .tabItem {
-                    Label("Shopify", systemImage: "message")
+                    Label("Chat", systemImage: "message")
                 }
                 .tag(2)
 
@@ -237,9 +237,9 @@ final class AppNotificationMonitor: NSObject, UNUserNotificationCenterDelegate {
     private var pollingTask: Task<Void, Never>?
 
     private let mailNotificationEnabledKey = "mailNotificationsEnabled"
-    private let shopifyNotificationEnabledKey = "shopifyNotificationsEnabled"
+    private let chatNotificationEnabledKey = "chatNotificationsEnabled"
     private let lastMailIdKey = "lastMailNotificationId"
-    private let lastShopifyEventIdKey = "lastShopifyNotificationId"
+    private let lastChatMessageByUserKey = "lastChatMessageByUser"
 
     func start() {
         guard pollingTask == nil else { return }
@@ -270,7 +270,7 @@ final class AppNotificationMonitor: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func requestAuthorizationIfNeeded() async {
-        guard isNotificationEnabled(forKey: mailNotificationEnabledKey) || isNotificationEnabled(forKey: shopifyNotificationEnabledKey) else {
+        guard isNotificationEnabled(forKey: mailNotificationEnabledKey) || isNotificationEnabled(forKey: chatNotificationEnabledKey) else {
             return
         }
 
@@ -289,8 +289,8 @@ final class AppNotificationMonitor: NSObject, UNUserNotificationCenterDelegate {
             await pollMail()
         }
 
-        if isNotificationEnabled(forKey: shopifyNotificationEnabledKey) {
-            await pollShopify()
+        if isNotificationEnabled(forKey: chatNotificationEnabledKey) {
+            await pollChat()
         }
     }
 
@@ -323,31 +323,43 @@ final class AppNotificationMonitor: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    private func pollShopify() async {
+    private func pollChat() async {
         do {
-            let response = try await apiClient.fetchShopifyChatFeed(limitOrders: 12, limitEvents: 40)
-            guard let latestEvent = response.events.first else { return }
+            let currentUser = try await apiClient.fetchCurrentUser()
+            let users = try await apiClient.fetchDirectChatUsers()
 
             let defaults = UserDefaults.standard
-            guard let previousId = defaults.string(forKey: lastShopifyEventIdKey) else {
-                defaults.set(latestEvent.id, forKey: lastShopifyEventIdKey)
-                return
-            }
+            var lastMessageByUser = defaults.dictionary(forKey: lastChatMessageByUserKey) as? [String: String] ?? [:]
+            var changed = false
 
-            guard previousId != latestEvent.id else { return }
+            for user in users {
+                let conversation = try await apiClient.fetchDirectChatConversation(userId: user.id)
+                guard let latestIncoming = conversation.messages.reversed().first(where: { $0.sender_id != currentUser.id }) else {
+                    continue
+                }
 
-            let newEvents = response.events.prefix { $0.id != previousId }
-            for event in Array(newEvents.reversed()).suffix(3) {
-                let orderName = event.order_name.isEmpty ? "Order \(event.order_id)" : event.order_name
+                guard let previousId = lastMessageByUser[user.id] else {
+                    lastMessageByUser[user.id] = latestIncoming.id
+                    changed = true
+                    continue
+                }
+
+                guard previousId != latestIncoming.id else { continue }
+
                 await deliverNotification(
-                    identifier: "shopify-\(event.id)",
-                    title: "New Shopify event: \(orderName)",
-                    body: "\(event.author): \(event.message)",
+                    identifier: "chat-\(user.id)-\(latestIncoming.id)",
+                    title: "Nieuw chatbericht van \(user.full_name)",
+                    body: latestIncoming.body,
                     targetTab: 2
                 )
+
+                lastMessageByUser[user.id] = latestIncoming.id
+                changed = true
             }
 
-            defaults.set(latestEvent.id, forKey: lastShopifyEventIdKey)
+            if changed {
+                defaults.set(lastMessageByUser, forKey: lastChatMessageByUserKey)
+            }
         } catch {
             return
         }

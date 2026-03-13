@@ -91,6 +91,8 @@ type UpdateConfig = {
   ubuntu_update_command: string;
 };
 
+type UpdateSourceMode = "cloud" | "git";
+
 type ShopifyConfig = {
   store_domain: string;
   api_version: string;
@@ -221,6 +223,9 @@ export default function SettingsPage() {
   const [updateChannel, setUpdateChannel] = useState<"stable" | "beta">("stable");
   const [updateBusy, setUpdateBusy] = useState(false);
   const [fetchBusy, setFetchBusy] = useState(false);
+  const [updateSourceMode, setUpdateSourceMode] = useState<UpdateSourceMode>("cloud");
+  const [gitRepoUrl, setGitRepoUrl] = useState("https://github.com/AlessioD200/ThoKan_cloud");
+  const [gitBranch, setGitBranch] = useState("main");
   const [checkResult, setCheckResult] = useState<{ version: string | null; up_to_date: boolean; notes: string | null } | null>(null);
   const [updatePrompt, setUpdatePrompt] = useState<{ version: string | null; notes: string | null; installedVersion: string | null } | null>(null);
   const [dryRun, setDryRun] = useState(false);
@@ -523,6 +528,42 @@ export default function SettingsPage() {
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Laatste update ophalen mislukt");
     }
+    setFetchBusy(false);
+  }
+
+  async function fetchAndApplyGitUpdate() {
+    setFetchBusy(true);
+    setStatus("");
+    try {
+      setUpdateBusy(true);
+      markUpdateRunning(`git-${gitBranch || "main"}`);
+      const applied = await api<UpdateStatus>("/system/update/fetch-and-apply-github", {
+        method: "POST",
+        body: JSON.stringify({
+          repo_url: gitRepoUrl.trim(),
+          branch: gitBranch.trim() || "main",
+          channel: updateChannel,
+          dry_run: dryRun,
+          auto_rebuild_docker: updateConfig?.auto_rebuild_docker,
+          auto_update_ubuntu: updateConfig?.auto_update_ubuntu,
+        }),
+      });
+      setUpdateStatus(applied);
+      setStatus(applied.state === "success" ? "Git-update voltooid" : "Git-update mislukt");
+      await loadUpdateData();
+      if (shouldForceReloginAfterRebuild(applied)) {
+        forceReloginAfterRebuild();
+        return;
+      }
+    } catch (err) {
+      if (isLikelyRestartInterruption(err) && !dryRun) {
+        forceReloginAfterRebuild();
+        return;
+      }
+      setStatus(err instanceof Error ? err.message : "Git-update mislukt");
+      await loadUpdateData();
+    }
+    setUpdateBusy(false);
     setFetchBusy(false);
   }
 
@@ -1515,7 +1556,7 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
           icon={<PackageCheck className="h-5 w-5" />}
           eyebrow="Info"
           title="Systeemupdates"
-          description="Controleer GitHub-gepubliceerde stable- of beta-updates, download ze naar de server en installeer ze gecontroleerd."
+          description="Kies je updatebron: cloudpakket of git pull-flow, en installeer gecontroleerd op de server."
           aside={
             <div className={`rounded-full px-3 py-1 text-xs font-medium ${getUpdateStateTone(updateStatus?.state)}`}>
               {updateStatus?.state || "inactief"}
@@ -1542,6 +1583,48 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
+            <div className="inline-flex items-center rounded-2xl border border-border bg-card/30 p-1">
+              <button
+                onClick={() => setUpdateSourceMode("cloud")}
+                className={`rounded-xl px-3 py-1.5 text-sm transition ${updateSourceMode === "cloud" ? "bg-accent text-white" : "hover:bg-card/60"}`}
+              >
+                Cloud update
+              </button>
+              <button
+                onClick={() => setUpdateSourceMode("git")}
+                className={`rounded-xl px-3 py-1.5 text-sm transition ${updateSourceMode === "git" ? "bg-accent text-white" : "hover:bg-card/60"}`}
+              >
+                Git pull
+              </button>
+            </div>
+          </div>
+
+          {updateSourceMode === "git" && (
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium">Git repository URL</label>
+                <input
+                  type="text"
+                  className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                  value={gitRepoUrl}
+                  onChange={(e) => setGitRepoUrl(e.target.value)}
+                  placeholder="https://github.com/owner/repo"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium">Git branch</label>
+                <input
+                  type="text"
+                  className="mt-2 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                  value={gitBranch}
+                  onChange={(e) => setGitBranch(e.target.value)}
+                  placeholder="main"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-wrap gap-2">
             <button
               onClick={checkAndFetchLatestUpdate}
               disabled={fetchBusy}
@@ -1550,13 +1633,22 @@ Header: X-Shopify-Chat-Secret: ${shopifyWebsiteChatSecret || "<shared-secret>"}
               <ArrowUpRight className="h-4 w-4" />
               {fetchBusy ? "Controleren..." : "Update controleren"}
             </button>
-            {updatePrompt && (
+            {updateSourceMode === "cloud" && updatePrompt && (
               <button
                 onClick={() => void fetchLatestUpdate()}
                 disabled={updateBusy || fetchBusy}
                 className="inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
               >
                 {updateBusy ? "Installeren..." : "Update installeren"}
+              </button>
+            )}
+            {updateSourceMode === "git" && (
+              <button
+                onClick={() => void fetchAndApplyGitUpdate()}
+                disabled={updateBusy || fetchBusy || !gitRepoUrl.trim()}
+                className="inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+              >
+                {updateBusy ? "Installeren..." : "Git update uitvoeren"}
               </button>
             )}
           </div>

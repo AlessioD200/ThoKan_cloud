@@ -67,7 +67,7 @@ struct DashboardTab: View {
     private var quickActions: [(title: String, subtitle: String, icon: String, tab: Int)] {
         var actions: [(title: String, subtitle: String, icon: String, tab: Int)] = [
             ("Files", "Upload, preview en delen", "folder.fill", 1),
-            ("Shopify", "Order en chat events", "message.fill", 2),
+            ("Chat", "Directe teamgesprekken", "message.fill", 2),
             ("Mail", "Inbox en antwoorden", "envelope.fill", 3),
             ("Settings", "Connecties en updates", "gearshape.fill", isAdmin ? 5 : 4),
         ]
@@ -564,6 +564,66 @@ struct ShopifyTab: View {
     }
 }
 
+struct DirectMessagesTab: View {
+    @State private var usersViewModel = DirectChatUsersViewModel()
+    @State private var selectedChatUser: DirectChatParticipant?
+    @State private var searchQuery = ""
+
+    private var filteredUsers: [DirectChatParticipant] {
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return usersViewModel.users }
+        return usersViewModel.users.filter {
+            $0.email.lowercased().contains(query) || $0.full_name.lowercased().contains(query)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if usersViewModel.isLoading {
+                    ProgressView("Loading chats...")
+                } else if filteredUsers.isEmpty {
+                    ContentUnavailableView("No chat users", systemImage: "message")
+                } else {
+                    List(filteredUsers, id: \.id) { user in
+                        Button {
+                            selectedChatUser = user
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(user.full_name)
+                                    .font(.subheadline.weight(.semibold))
+                                Text(user.email)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .navigationTitle("Chat")
+            .searchable(text: $searchQuery, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search users")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task {
+                            await usersViewModel.loadUsers()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+            }
+        }
+        .sheet(item: $selectedChatUser) { user in
+            ChatConversationSheet(userId: user.id, userName: user.full_name)
+        }
+        .task {
+            await usersViewModel.loadUsers()
+        }
+    }
+}
+
 // MARK: - Email Tab
 
 struct EmailTab: View {
@@ -725,7 +785,6 @@ struct EmailDetailView: View {
 
 struct AdminTab: View {
     @State private var viewModel = AdminViewModel()
-    @State private var chatViewModel = DirectChatViewModel()
     @State private var selectedSegment: Int = 0
     @State private var searchQuery = ""
     @State private var showCreateUserSheet = false
@@ -894,7 +953,7 @@ struct AdminTab: View {
             }
         }
         .sheet(item: $selectedChatUser) { user in
-            UserChatSheet(user: user, viewModel: chatViewModel)
+            ChatConversationSheet(userId: user.id, userName: user.full_name)
         }
         .task {
             await viewModel.fetchAdminData()
@@ -902,9 +961,11 @@ struct AdminTab: View {
     }
 }
 
-struct UserChatSheet: View {
-    let user: AdminUserResponse
-    let viewModel: DirectChatViewModel
+struct ChatConversationSheet: View {
+    @Environment(AuthenticationViewModel.self) private var authViewModel
+    @State private var viewModel = DirectChatViewModel()
+    let userId: String
+    let userName: String
 
     @Environment(\.dismiss) private var dismiss
     @State private var draft = ""
@@ -919,17 +980,32 @@ struct UserChatSheet: View {
                 } else if viewModel.messages.isEmpty {
                     ContentUnavailableView("No messages yet", systemImage: "message")
                 } else {
-                    List(viewModel.messages, id: \.id) { message in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(message.body)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Text(message.created_at)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(viewModel.messages, id: \.id) { message in
+                                let isOwn = message.sender_id == authViewModel.currentUser?.id
+                                HStack {
+                                    if isOwn { Spacer(minLength: 32) }
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(isOwn ? "Jij" : userName)
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                        Text(message.body)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                        Text(message.created_at)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(10)
+                                    .background(isOwn ? Color.blue.opacity(0.18) : Color(uiColor: .secondarySystemFill))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    if !isOwn { Spacer(minLength: 32) }
+                                }
+                            }
                         }
-                        .padding(.vertical, 4)
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
                     }
-                    .listStyle(.plain)
                 }
 
                 if let errorMessage = viewModel.errorMessage {
@@ -947,7 +1023,7 @@ struct UserChatSheet: View {
 
                     Button {
                         Task {
-                            let sent = await viewModel.sendMessage(userId: user.id, body: draft)
+                            let sent = await viewModel.sendMessage(userId: userId, body: draft)
                             if sent {
                                 draft = ""
                             }
@@ -965,7 +1041,7 @@ struct UserChatSheet: View {
                 .padding()
                 .background(Color(uiColor: .systemGroupedBackground))
             }
-            .navigationTitle(user.full_name)
+            .navigationTitle(userName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -975,7 +1051,7 @@ struct UserChatSheet: View {
                 }
             }
             .task {
-                await viewModel.loadConversation(userId: user.id)
+                await viewModel.loadConversation(userId: userId)
             }
         }
     }

@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 @lru_cache(maxsize=1)
-def get_runtime_version(default: str = "1.0.0") -> str:
+def get_runtime_version(default: str = "unknown") -> str:
     current_file = Path(__file__).resolve()
     for parent in current_file.parents:
         version_file = parent / "VERSION"
