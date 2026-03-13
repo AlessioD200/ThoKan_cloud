@@ -61,7 +61,7 @@ export default function LoginPage() {
         // Ignore storage errors.
       }
       
-      window.location.replace(`/dashboard?r=${Date.now()}`);
+      window.location.replace("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Inloggen mislukt");
     } finally {

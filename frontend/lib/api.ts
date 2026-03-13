@@ -91,7 +91,7 @@ function redirectToLogin() {
   } catch {
     // Ignore storage errors; redirect should still happen.
   }
-  window.location.replace(`/login?r=${Date.now()}`);
+  window.location.replace("/login");
 }
 
 export async function apiRaw(path: string, options?: RequestInit): Promise<Response> {
@@ -281,7 +281,7 @@ export async function ensureSession(options?: { requireConfirmedAuth?: boolean }
 
       if (response.status === 429) {
         sessionCheckRateLimitedUntil = Date.now() + SESSION_CHECK_RATE_LIMIT_COOLDOWN_MS;
-        return false;
+        return requireConfirmedAuth ? false : true;
       }
 
       if (response.ok) {
