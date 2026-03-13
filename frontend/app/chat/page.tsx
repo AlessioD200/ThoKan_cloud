@@ -38,6 +38,7 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const lastMessageId = messages.length > 0 ? messages[messages.length - 1]?.id : "";
 
   function scrollToBottom() {
     if (!messagesContainerRef.current) return;
@@ -143,8 +144,11 @@ export default function ChatPage() {
   }, [selectedUser, currentUserId, lastIncomingMessageId]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, selectedUser?.id]);
+    const timeout = setTimeout(() => {
+      scrollToBottom();
+    }, 40);
+    return () => clearTimeout(timeout);
+  }, [lastMessageId, selectedUser?.id]);
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -216,7 +220,7 @@ export default function ChatPage() {
             </ul>
           </section>
 
-          <section className="glass rounded-[2rem] p-5 sm:p-6">
+          <section className="glass rounded-[2rem] p-5 sm:p-6 min-h-[68vh] flex flex-col">
             {selectedUser ? (
               <>
                 <div className="border-b border-border/60 pb-5">

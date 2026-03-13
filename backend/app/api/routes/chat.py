@@ -11,6 +11,7 @@ from app.db.session import get_db
 from app.deps import get_current_user
 from app.models import SystemSetting, User
 from app.services.audit import log_event
+from app.api.routes.notifications import _load_tokens, _send_apns
 
 router = APIRouter()
 
@@ -83,7 +84,7 @@ def get_direct_conversation(
 
 
 @router.post("/conversations/{user_id}")
-def send_direct_message(
+async def send_direct_message(
     user_id: str,
     payload: ChatSendRequest,
     current_user: User = Depends(get_current_user),
@@ -127,4 +128,25 @@ def send_direct_message(
         entity_id=target_user.id,
         metadata={"recipient_id": str(target_user.id)},
     )
+    try:
+        recipient_tokens = _load_tokens(db, str(target_user.id))
+        if recipient_tokens:
+            sender_label = current_user.full_name or current_user.email or "ThoKan Cloud"
+            for token in recipient_tokens:
+                try:
+                    await _send_apns(
+                        token,
+                        f"Nieuw chatbericht van {sender_label}",
+                        body,
+                        user_info={
+                            "target_tab": 2,
+                            "chat_user_id": str(current_user.id),
+                            "chat_message_id": message["id"],
+                        },
+                    )
+                except Exception:
+                    continue
+    except Exception:
+        pass
+
     return {"message": "Message sent", "chat_message": message}

@@ -596,8 +596,10 @@ struct DirectMessagesTab: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.borderless)
                     }
                 }
             }
@@ -1090,7 +1092,7 @@ struct ChatConversationSheet: View {
             }
             .onReceive(Timer.publish(every: 2.5, on: .main, in: .common).autoconnect()) { _ in
                 Task {
-                    await viewModel.loadConversation(userId: userId)
+                    await viewModel.loadConversation(userId: userId, showLoading: false)
                 }
             }
         }

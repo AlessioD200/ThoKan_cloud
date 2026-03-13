@@ -482,18 +482,24 @@ class DirectChatViewModel {
     var errorMessage: String?
 
     @MainActor
-    func loadConversation(userId: String) async {
-        isLoading = true
+    func loadConversation(userId: String, showLoading: Bool = true) async {
+        if showLoading {
+            isLoading = true
+        }
         errorMessage = nil
 
         do {
             let response = try await apiClient.fetchDirectChatConversation(userId: userId)
-            messages = response.messages
+            if response.messages != messages {
+                messages = response.messages
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
 
-        isLoading = false
+        if showLoading {
+            isLoading = false
+        }
     }
 
     @MainActor

@@ -250,7 +250,7 @@ final class AppNotificationMonitor: NSObject, UNUserNotificationCenterDelegate {
 
             while !Task.isCancelled {
                 await pollIfNeeded()
-                try? await Task.sleep(for: .seconds(60))
+                try? await Task.sleep(for: .seconds(8))
             }
         }
     }
@@ -380,7 +380,7 @@ final class AppNotificationMonitor: NSObject, UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .list])
+        completionHandler([])
     }
 
     func userNotificationCenter(

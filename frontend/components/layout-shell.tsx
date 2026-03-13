@@ -29,6 +29,24 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
   const activeItem = items.find((item) => pathname.startsWith(item.href)) ?? items[0];
 
   useEffect(() => {
+    try {
+      const savedMap = localStorage.getItem("chat_latest_incoming_by_user");
+      if (savedMap) {
+        latestIncomingByUserRef.current = JSON.parse(savedMap) as Record<string, string>;
+      }
+      const savedUnread = localStorage.getItem("chat_unread_count");
+      if (savedUnread) {
+        const value = Number(savedUnread);
+        if (!Number.isNaN(value) && value > 0) {
+          setChatUnreadCount(value);
+        }
+      }
+    } catch {
+      // Ignore storage errors.
+    }
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function checkAuth() {
@@ -122,7 +140,21 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
         }
 
         if (!cancelled && unreadIncrement > 0) {
-          setChatUnreadCount((value) => value + unreadIncrement);
+          setChatUnreadCount((value) => {
+            const next = value + unreadIncrement;
+            try {
+              localStorage.setItem("chat_unread_count", String(next));
+            } catch {
+              // Ignore storage errors.
+            }
+            return next;
+          });
+        }
+
+        try {
+          localStorage.setItem("chat_latest_incoming_by_user", JSON.stringify(latestIncomingByUserRef.current));
+        } catch {
+          // Ignore storage errors.
         }
       } catch {
         // Best-effort polling only.
@@ -136,6 +168,11 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
 
     if (pathname.startsWith("/chat")) {
       setChatUnreadCount(0);
+      try {
+        localStorage.setItem("chat_unread_count", "0");
+      } catch {
+        // Ignore storage errors.
+      }
     }
 
     void pollChatNotifications();
