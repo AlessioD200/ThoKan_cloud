@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -62,7 +62,7 @@ def main() -> int:
         "version": args.version,
         "channel": args.channel,
         "package_url": package_url,
-        "published_at": datetime.now(UTC).isoformat(),
+        "published_at": datetime.now(timezone.utc).isoformat(),
     }
     if args.notes.strip():
         manifest["notes"] = args.notes.strip()

@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -58,11 +60,24 @@ jobs:
             --output-dir dist/updates)"
           echo "package_path=${package_path}" >> "$GITHUB_OUTPUT"
 
-      - name: Create manifest and publish tree
+      - name: Seed publish tree from update branch (if present)
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p .publish
+          if git ls-remote --exit-code --heads origin update-channel >/dev/null 2>&1; then
+            git fetch origin update-channel
+            git worktree add .update-channel origin/update-channel
+            rsync -a --delete --exclude ".git" .update-channel/ .publish/
+            git worktree remove .update-channel --force
+          else
+            echo "update-channel branch not found yet; publishing first snapshot"
+          fi
+
+      - name: Create manifest and publish tree
+        shell: bash
+        run: |
+          set -euo pipefail
           python scripts/publish_update.py \
             --channel "${{ steps.meta.outputs.channel }}" \
             --version "${{ steps.meta.outputs.version }}" \
@@ -77,5 +92,5 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./.publish
           publish_branch: update-channel
-          keep_files: true
+          keep_files: false
           force_orphan: false
